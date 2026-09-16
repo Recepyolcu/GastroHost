@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
+import '../../../core/providers/app_settings_provider.dart';
+import '../../../core/theme/app_theme.dart';
 
-class ProviderDetailScreen extends StatefulWidget {
+class ProviderDetailScreen extends ConsumerStatefulWidget {
   final Map<String, dynamic> provider;
   final VoidCallback onStartBooking;
   final VoidCallback? onBack;
@@ -14,10 +17,10 @@ class ProviderDetailScreen extends StatefulWidget {
   });
 
   @override
-  State<ProviderDetailScreen> createState() => _ProviderDetailScreenState();
+  ConsumerState<ProviderDetailScreen> createState() => _ProviderDetailScreenState();
 }
 
-class _ProviderDetailScreenState extends State<ProviderDetailScreen> with SingleTickerProviderStateMixin {
+class _ProviderDetailScreenState extends ConsumerState<ProviderDetailScreen> with SingleTickerProviderStateMixin {
   late TabController _tabController;
 
   final List<String> _chefGalleryImages = [
@@ -71,13 +74,17 @@ class _ProviderDetailScreenState extends State<ProviderDetailScreen> with Single
 
   @override
   Widget build(BuildContext context) {
+    final settings = ref.watch(appSettingsProvider);
+    final isDark = settings.isDarkMode;
+    final palette = AppThemePalette(isDark);
+
     final provider = widget.provider;
     final String name = provider['name'] ?? (isMixologist ? 'Marcus T.' : 'Chef Marco');
     final String rating = (provider['rating'] ?? '4.8').toString();
 
     return Scaffold(
-      backgroundColor: const Color(0xFFFBF9F8),
-      bottomNavigationBar: _buildBottomActionBar(),
+      backgroundColor: palette.bg,
+      bottomNavigationBar: _buildBottomActionBar(palette, isDark),
       body: SafeArea(
         child: Column(
           children: [
@@ -95,17 +102,17 @@ class _ProviderDetailScreenState extends State<ProviderDetailScreen> with Single
                         Navigator.of(context).maybePop();
                       }
                     },
-                    icon: const Icon(Icons.arrow_back_rounded, color: Color(0xFF1B1C1C)),
+                    icon: Icon(Icons.arrow_back_rounded, color: palette.textPrimary),
                     style: IconButton.styleFrom(
-                      backgroundColor: const Color(0xFFE9E8E7),
+                      backgroundColor: palette.surfaceElevated,
                       padding: const EdgeInsets.all(8),
                     ),
                   ),
                   IconButton(
                     onPressed: () {},
-                    icon: const Icon(Icons.ios_share_rounded, color: Color(0xFF1B1C1C)),
+                    icon: Icon(Icons.ios_share_rounded, color: palette.textPrimary),
                     style: IconButton.styleFrom(
-                      backgroundColor: const Color(0xFFE9E8E7),
+                      backgroundColor: palette.surfaceElevated,
                       padding: const EdgeInsets.all(8),
                     ),
                   ),
@@ -141,25 +148,26 @@ class _ProviderDetailScreenState extends State<ProviderDetailScreen> with Single
                               child: Container(
                                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                                 decoration: BoxDecoration(
-                                  color: Colors.white,
+                                  color: palette.surface,
                                   borderRadius: BorderRadius.circular(20),
+                                  border: Border.all(color: palette.border),
                                   boxShadow: [
                                     BoxShadow(
-                                      color: Colors.black.withValues(alpha: 0.1),
+                                      color: Colors.black.withValues(alpha: 0.15),
                                       blurRadius: 8,
                                     ),
                                   ],
                                 ),
                                 child: Row(
                                   children: [
-                                    const Icon(Icons.grid_view_rounded, size: 14, color: Color(0xFF1B1C1C)),
+                                    Icon(Icons.grid_view_rounded, size: 14, color: palette.textPrimary),
                                     const SizedBox(width: 4),
                                     Text(
                                       'Show all ${_galleryImages.length} photos',
                                       style: GoogleFonts.manrope(
                                         fontSize: 11,
                                         fontWeight: FontWeight.bold,
-                                        color: const Color(0xFF1B1C1C),
+                                        color: palette.textPrimary,
                                       ),
                                     ),
                                   ],
@@ -188,20 +196,20 @@ class _ProviderDetailScreenState extends State<ProviderDetailScreen> with Single
                                     style: GoogleFonts.libreCaslonText(
                                       fontSize: 28,
                                       fontWeight: FontWeight.bold,
-                                      color: const Color(0xFF1B1C1C),
+                                      color: palette.textPrimary,
                                     ),
                                   ),
                                   const SizedBox(height: 6),
                                   Row(
                                     children: [
-                                      const Icon(Icons.star_rounded, color: Color(0xFF7B5800), size: 18),
+                                      Icon(Icons.star_rounded, color: palette.goldAccent, size: 18),
                                       const SizedBox(width: 4),
                                       Text(
                                         rating,
                                         style: GoogleFonts.manrope(
                                           fontSize: 14,
                                           fontWeight: FontWeight.bold,
-                                          color: const Color(0xFF1B1C1C),
+                                          color: palette.textPrimary,
                                         ),
                                       ),
                                       const SizedBox(width: 4),
@@ -209,26 +217,27 @@ class _ProviderDetailScreenState extends State<ProviderDetailScreen> with Single
                                         '(124 reviews)',
                                         style: GoogleFonts.manrope(
                                           fontSize: 13,
-                                          color: const Color(0xFF747878),
+                                          color: palette.textMuted,
                                         ),
                                       ),
                                       const SizedBox(width: 10),
                                       Container(
                                         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                                         decoration: BoxDecoration(
-                                          color: const Color(0xFFE9E8E7),
+                                          color: palette.goldGlow,
                                           borderRadius: BorderRadius.circular(12),
+                                          border: Border.all(color: palette.goldAccent.withValues(alpha: 0.3)),
                                         ),
                                         child: Row(
                                           children: [
-                                            const Icon(Icons.verified_rounded, color: Color(0xFF7B5800), size: 12),
+                                            Icon(Icons.verified_rounded, color: palette.goldAccent, size: 12),
                                             const SizedBox(width: 4),
                                             Text(
                                               'Verified',
                                               style: GoogleFonts.manrope(
                                                 fontSize: 11,
                                                 fontWeight: FontWeight.bold,
-                                                color: const Color(0xFF1B1C1C),
+                                                color: palette.goldAccent,
                                               ),
                                             ),
                                           ],
@@ -256,7 +265,7 @@ class _ProviderDetailScreenState extends State<ProviderDetailScreen> with Single
                             ],
                           ),
                           const SizedBox(height: 20),
-                          const Divider(color: Color(0xFFE4E2E2)),
+                          Divider(color: palette.border),
                           const SizedBox(height: 16),
 
                           // About Section
@@ -265,7 +274,7 @@ class _ProviderDetailScreenState extends State<ProviderDetailScreen> with Single
                             style: GoogleFonts.manrope(
                               fontSize: 16,
                               fontWeight: FontWeight.bold,
-                              color: const Color(0xFF1B1C1C),
+                              color: palette.textPrimary,
                             ),
                           ),
                           const SizedBox(height: 8),
@@ -275,7 +284,7 @@ class _ProviderDetailScreenState extends State<ProviderDetailScreen> with Single
                                 : 'Italian Michelin-star background, specializing in truffle pasta and contemporary Mediterranean cuisine. Chef Marco brings the warmth of a rustic Italian kitchen combined with the precision of high-end gastronomy directly to your dining room.',
                             style: GoogleFonts.manrope(
                               fontSize: 14,
-                              color: const Color(0xFF747878),
+                              color: palette.textMuted,
                               height: 1.5,
                             ),
                           ),
@@ -285,26 +294,26 @@ class _ProviderDetailScreenState extends State<ProviderDetailScreen> with Single
                           Row(
                             children: isMixologist
                                 ? [
-                                    _buildTagPill('Craft Cocktails'),
-                                    _buildTagPill('Botanical'),
-                                    _buildTagPill('Bar Master'),
+                                    _buildTagPill('Craft Cocktails', palette),
+                                    _buildTagPill('Botanical', palette),
+                                    _buildTagPill('Bar Master', palette),
                                   ]
                                 : [
-                                    _buildTagPill('Italian'),
-                                    _buildTagPill('Fine Dining'),
-                                    _buildTagPill('Pasta Expert'),
+                                    _buildTagPill('Italian', palette),
+                                    _buildTagPill('Fine Dining', palette),
+                                    _buildTagPill('Pasta Expert', palette),
                                   ],
                           ),
                           const SizedBox(height: 20),
-                          const Divider(color: Color(0xFFE4E2E2)),
+                          Divider(color: palette.border),
                           const SizedBox(height: 16),
 
                           // Tabs Selector
                           TabBar(
                             controller: _tabController,
-                            indicatorColor: const Color(0xFF7B5800),
-                            labelColor: const Color(0xFF1B1C1C),
-                            unselectedLabelColor: const Color(0xFF747878),
+                            indicatorColor: palette.goldAccent,
+                            labelColor: palette.goldAccent,
+                            unselectedLabelColor: palette.textMuted,
                             labelStyle: GoogleFonts.manrope(fontSize: 14, fontWeight: FontWeight.bold),
                             tabs: [
                               Tab(text: isMixologist ? 'Cocktail Packages' : 'Menus'),
@@ -329,12 +338,16 @@ class _ProviderDetailScreenState extends State<ProviderDetailScreen> with Single
                                             subtitle: 'Customized menu of 4 signature cocktails, house-made syrups, and fresh botanical garnishes.',
                                             price: '₺850/saat',
                                             tag: 'En Popüler',
+                                            palette: palette,
+                                            isDark: isDark,
                                           ),
                                           const SizedBox(height: 12),
                                           _buildMenuItem(
                                             title: 'Classic & Vintage Tasting (3 Saat)',
                                             subtitle: 'Curated tasting of prohibition-era classics and elevated twists.',
                                             price: '₺750/saat',
+                                            palette: palette,
+                                            isDark: isDark,
                                           ),
                                         ]
                                       : [
@@ -343,12 +356,16 @@ class _ProviderDetailScreenState extends State<ProviderDetailScreen> with Single
                                             subtitle: 'A curated journey through Northern Italy focusing on seasonal truffles.',
                                             price: '₺1.850/kişi',
                                             tag: 'En Popüler',
+                                            palette: palette,
+                                            isDark: isDark,
                                           ),
                                           const SizedBox(height: 12),
                                           _buildMenuItem(
                                             title: 'Grand Tasting (5 Aşamalı)',
                                             subtitle: 'An expansive culinary exploration including seafood, pasta, and premium wagyu.',
                                             price: '₺2.450/kişi',
+                                            palette: palette,
+                                            isDark: isDark,
                                           ),
                                         ],
                                 ),
@@ -363,13 +380,13 @@ class _ProviderDetailScreenState extends State<ProviderDetailScreen> with Single
                                             style: GoogleFonts.manrope(
                                               fontSize: 15,
                                               fontWeight: FontWeight.bold,
-                                              color: const Color(0xFF1B1C1C),
+                                              color: palette.textPrimary,
                                             ),
                                           ),
                                           const SizedBox(height: 12),
-                                          _buildRequirementItem('Clean bar or countertop space'),
-                                          _buildRequirementItem('Glassware provided by host (or request addon)'),
-                                          _buildRequirementItem('Ice & cooler access'),
+                                          _buildRequirementItem('Clean bar or countertop space', palette),
+                                          _buildRequirementItem('Glassware provided by host (or request addon)', palette),
+                                          _buildRequirementItem('Ice & cooler access', palette),
                                         ]
                                       : [
                                           Text(
@@ -377,13 +394,13 @@ class _ProviderDetailScreenState extends State<ProviderDetailScreen> with Single
                                             style: GoogleFonts.manrope(
                                               fontSize: 15,
                                               fontWeight: FontWeight.bold,
-                                              color: const Color(0xFF1B1C1C),
+                                              color: palette.textPrimary,
                                             ),
                                           ),
                                           const SizedBox(height: 12),
-                                          _buildRequirementItem('Needs 4-burner stove'),
-                                          _buildRequirementItem('Working oven'),
-                                          _buildRequirementItem('Blender or food processor'),
+                                          _buildRequirementItem('Needs 4-burner stove', palette),
+                                          _buildRequirementItem('Working oven', palette),
+                                          _buildRequirementItem('Blender or food processor', palette),
                                         ],
                                 ),
 
@@ -391,7 +408,7 @@ class _ProviderDetailScreenState extends State<ProviderDetailScreen> with Single
                                 Center(
                                   child: Text(
                                     '124 Verified Reviews (4.8 ★)',
-                                    style: GoogleFonts.manrope(color: const Color(0xFF747878)),
+                                    style: GoogleFonts.manrope(color: palette.textMuted),
                                   ),
                                 ),
                               ],
@@ -410,20 +427,21 @@ class _ProviderDetailScreenState extends State<ProviderDetailScreen> with Single
     );
   }
 
-  Widget _buildTagPill(String label) {
+  Widget _buildTagPill(String label, AppThemePalette palette) {
     return Container(
       margin: const EdgeInsets.only(right: 8),
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       decoration: BoxDecoration(
-        color: const Color(0xFFEFEDED),
+        color: palette.surfaceElevated,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: const Color(0xFFE4E2E2)),
+        border: Border.all(color: palette.borderSubtle),
       ),
       child: Text(
         label,
         style: GoogleFonts.manrope(
           fontSize: 12,
-          color: const Color(0xFF1B1C1C),
+          fontWeight: FontWeight.w500,
+          color: palette.textPrimary,
         ),
       ),
     );
@@ -433,20 +451,24 @@ class _ProviderDetailScreenState extends State<ProviderDetailScreen> with Single
     required String title,
     required String subtitle,
     required String price,
+    required AppThemePalette palette,
+    required bool isDark,
     String? tag,
   }) {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: palette.surface,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFE4E2E2)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.03),
-            blurRadius: 10,
-          ),
-        ],
+        border: Border.all(color: palette.border),
+        boxShadow: isDark
+            ? null
+            : [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.03),
+                  blurRadius: 10,
+                ),
+              ],
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -460,7 +482,7 @@ class _ProviderDetailScreenState extends State<ProviderDetailScreen> with Single
                   style: GoogleFonts.manrope(
                     fontSize: 15,
                     fontWeight: FontWeight.bold,
-                    color: const Color(0xFF1B1C1C),
+                    color: palette.textPrimary,
                   ),
                 ),
                 const SizedBox(height: 4),
@@ -468,7 +490,7 @@ class _ProviderDetailScreenState extends State<ProviderDetailScreen> with Single
                   subtitle,
                   style: GoogleFonts.manrope(
                     fontSize: 12,
-                    color: const Color(0xFF747878),
+                    color: palette.textMuted,
                     height: 1.3,
                   ),
                 ),
@@ -479,7 +501,7 @@ class _ProviderDetailScreenState extends State<ProviderDetailScreen> with Single
                     style: GoogleFonts.manrope(
                       fontSize: 10,
                       fontWeight: FontWeight.bold,
-                      color: const Color(0xFF7B5800),
+                      color: palette.goldAccent,
                       letterSpacing: 0.5,
                     ),
                   ),
@@ -496,14 +518,15 @@ class _ProviderDetailScreenState extends State<ProviderDetailScreen> with Single
                 style: GoogleFonts.manrope(
                   fontSize: 18,
                   fontWeight: FontWeight.bold,
-                  color: const Color(0xFF1B1C1C),
+                  color: palette.goldAccent,
                 ),
               ),
               const SizedBox(height: 8),
               OutlinedButton(
                 onPressed: widget.onStartBooking,
                 style: OutlinedButton.styleFrom(
-                  side: const BorderSide(color: Color(0xFF7B5800)),
+                  side: BorderSide(color: palette.goldAccent),
+                  backgroundColor: isDark ? palette.surfaceElevated : Colors.transparent,
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
                 ),
@@ -512,7 +535,7 @@ class _ProviderDetailScreenState extends State<ProviderDetailScreen> with Single
                   style: GoogleFonts.manrope(
                     fontSize: 11,
                     fontWeight: FontWeight.bold,
-                    color: const Color(0xFF7B5800),
+                    color: palette.goldAccent,
                   ),
                 ),
               ),
@@ -523,28 +546,28 @@ class _ProviderDetailScreenState extends State<ProviderDetailScreen> with Single
     );
   }
 
-  Widget _buildRequirementItem(String text) {
+  Widget _buildRequirementItem(String text, AppThemePalette palette) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 8.0),
       child: Row(
         children: [
-          const Icon(Icons.check_circle_outline_rounded, color: Color(0xFF7B5800), size: 18),
+          Icon(Icons.check_circle_outline_rounded, color: palette.goldAccent, size: 18),
           const SizedBox(width: 8),
           Text(
             text,
-            style: GoogleFonts.manrope(fontSize: 14, color: const Color(0xFF1B1C1C)),
+            style: GoogleFonts.manrope(fontSize: 14, color: palette.textPrimary),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildBottomActionBar() {
+  Widget _buildBottomActionBar(AppThemePalette palette, bool isDark) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        border: Border(top: BorderSide(color: Color(0xFFE4E2E2))),
+      decoration: BoxDecoration(
+        color: palette.surface,
+        border: Border(top: BorderSide(color: palette.border)),
       ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -558,25 +581,24 @@ class _ProviderDetailScreenState extends State<ProviderDetailScreen> with Single
                 style: GoogleFonts.manrope(
                   fontSize: 17,
                   fontWeight: FontWeight.bold,
-                  color: const Color(0xFF1B1C1C),
+                  color: palette.textPrimary,
                 ),
               ),
               Text(
                 isMixologist ? 'saatlik ücret' : 'kişi başı',
                 style: GoogleFonts.manrope(
                   fontSize: 12,
-                  color: const Color(0xFF747878),
+                  color: palette.textMuted,
                   decoration: TextDecoration.underline,
                 ),
               ),
-
             ],
           ),
           ElevatedButton(
             onPressed: widget.onStartBooking,
             style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.black,
-              foregroundColor: Colors.white,
+              backgroundColor: isDark ? palette.goldAccent : Colors.black,
+              foregroundColor: isDark ? const Color(0xFF0B0D11) : Colors.white,
               padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 14),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
             ),
@@ -594,10 +616,14 @@ class _ProviderDetailScreenState extends State<ProviderDetailScreen> with Single
   }
 
   void _showAllPhotosModal() {
+    final settings = ref.read(appSettingsProvider);
+    final isDark = settings.isDarkMode;
+    final palette = AppThemePalette(isDark);
+
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      backgroundColor: const Color(0xFFFBF9F8),
+      backgroundColor: palette.surface,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
@@ -615,7 +641,7 @@ class _ProviderDetailScreenState extends State<ProviderDetailScreen> with Single
                   width: 40,
                   height: 4,
                   decoration: BoxDecoration(
-                    color: const Color(0xFFE4E2E2),
+                    color: palette.border,
                     borderRadius: BorderRadius.circular(2),
                   ),
                 ),
@@ -630,17 +656,17 @@ class _ProviderDetailScreenState extends State<ProviderDetailScreen> with Single
                         style: GoogleFonts.libreCaslonText(
                           fontSize: 20,
                           fontWeight: FontWeight.bold,
-                          color: const Color(0xFF1B1C1C),
+                          color: palette.textPrimary,
                         ),
                       ),
                       IconButton(
-                        icon: const Icon(Icons.close_rounded),
+                        icon: Icon(Icons.close_rounded, color: palette.textPrimary),
                         onPressed: () => Navigator.pop(context),
                       ),
                     ],
                   ),
                 ),
-                const Divider(),
+                Divider(color: palette.border),
                 Expanded(
                   child: GridView.builder(
                     controller: scrollController,
@@ -663,14 +689,14 @@ class _ProviderDetailScreenState extends State<ProviderDetailScreen> with Single
                             loadingBuilder: (context, child, progress) {
                               if (progress == null) return child;
                               return Container(
-                                color: const Color(0xFFEFEDED),
-                                child: const Center(
+                                color: palette.surfaceElevated,
+                                child: Center(
                                   child: SizedBox(
                                     width: 24,
                                     height: 24,
                                     child: CircularProgressIndicator(
                                       strokeWidth: 2,
-                                      color: Color(0xFF7B5800),
+                                      color: palette.goldAccent,
                                     ),
                                   ),
                                 ),

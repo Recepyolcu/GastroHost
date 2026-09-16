@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
+import '../../../core/providers/app_settings_provider.dart';
+import '../../../core/theme/app_theme.dart';
 
-class ChatScreen extends StatefulWidget {
+class ChatScreen extends ConsumerStatefulWidget {
   final String bookingId;
   final String recipientName;
   final String recipientRole;
@@ -16,10 +19,10 @@ class ChatScreen extends StatefulWidget {
   });
 
   @override
-  State<ChatScreen> createState() => _ChatScreenState();
+  ConsumerState<ChatScreen> createState() => _ChatScreenState();
 }
 
-class _ChatScreenState extends State<ChatScreen> {
+class _ChatScreenState extends ConsumerState<ChatScreen> {
   final TextEditingController _messageController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
 
@@ -81,13 +84,17 @@ class _ChatScreenState extends State<ChatScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final settings = ref.watch(appSettingsProvider);
+    final isDark = settings.isDarkMode;
+    final palette = AppThemePalette(isDark);
+
     return Scaffold(
-      backgroundColor: const Color(0xFFFBF9F8),
+      backgroundColor: palette.bg,
       appBar: AppBar(
-        backgroundColor: const Color(0xFFFBF9F8),
+        backgroundColor: palette.bg,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_rounded, color: Colors.black),
+          icon: Icon(Icons.arrow_back_rounded, color: palette.textPrimary),
           onPressed: widget.onBack,
         ),
         title: Row(
@@ -106,17 +113,17 @@ class _ChatScreenState extends State<ChatScreen> {
               children: [
                 Text(
                   widget.recipientName.isNotEmpty ? widget.recipientName : 'Chef Marco',
-                  style: GoogleFonts.manrope(
+                  style: GoogleFonts.libreCaslonText(
                     fontSize: 16,
                     fontWeight: FontWeight.bold,
-                    color: const Color(0xFF1B1C1C),
+                    color: palette.textPrimary,
                   ),
                 ),
                 Text(
                   'Active now • Event #${widget.bookingId.substring(0, widget.bookingId.length > 6 ? 6 : widget.bookingId.length)}',
                   style: GoogleFonts.manrope(
                     fontSize: 11,
-                    color: const Color(0xFF7B5800),
+                    color: palette.goldAccent,
                     fontWeight: FontWeight.w600,
                   ),
                 ),
@@ -147,13 +154,25 @@ class _ChatScreenState extends State<ChatScreen> {
                       ),
                       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                       decoration: BoxDecoration(
-                        color: isMe ? Colors.black : const Color(0xFFEFEDED),
+                        color: isMe
+                            ? (isDark ? palette.goldAccent : Colors.black)
+                            : palette.surface,
+                        border: isMe ? null : Border.all(color: palette.border),
                         borderRadius: BorderRadius.only(
                           topLeft: const Radius.circular(16),
                           topRight: const Radius.circular(16),
                           bottomLeft: Radius.circular(isMe ? 16 : 4),
                           bottomRight: Radius.circular(isMe ? 4 : 16),
                         ),
+                        boxShadow: isMe && isDark
+                            ? [
+                                BoxShadow(
+                                  color: palette.goldAccent.withValues(alpha: 0.25),
+                                  blurRadius: 8,
+                                  offset: const Offset(0, 2),
+                                ),
+                              ]
+                            : null,
                       ),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -162,7 +181,10 @@ class _ChatScreenState extends State<ChatScreen> {
                             msg['text'],
                             style: GoogleFonts.manrope(
                               fontSize: 14,
-                              color: isMe ? Colors.white : const Color(0xFF1B1C1C),
+                              fontWeight: FontWeight.w500,
+                              color: isMe
+                                  ? (isDark ? const Color(0xFF0B0D11) : Colors.white)
+                                  : palette.textPrimary,
                               height: 1.4,
                             ),
                           ),
@@ -171,7 +193,9 @@ class _ChatScreenState extends State<ChatScreen> {
                             msg['time'],
                             style: GoogleFonts.manrope(
                               fontSize: 10,
-                              color: isMe ? Colors.white70 : const Color(0xFF747878),
+                              color: isMe
+                                  ? (isDark ? const Color(0xFF0B0D11).withValues(alpha: 0.7) : Colors.white70)
+                                  : palette.textMuted,
                             ),
                           ),
                         ],
@@ -189,11 +213,11 @@ class _ChatScreenState extends State<ChatScreen> {
                 scrollDirection: Axis.horizontal,
                 padding: const EdgeInsets.symmetric(horizontal: 16),
                 children: [
-                  _buildChip('Confirm arrival time'),
+                  _buildChip('Confirm arrival time', palette),
                   const SizedBox(width: 8),
-                  _buildChip('Allergy notes'),
+                  _buildChip('Allergy notes', palette),
                   const SizedBox(width: 8),
-                  _buildChip('Kitchen gate code'),
+                  _buildChip('Kitchen gate code', palette),
                 ],
               ),
             ),
@@ -202,23 +226,23 @@ class _ChatScreenState extends State<ChatScreen> {
             // Input Bar
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              decoration: const BoxDecoration(
-                color: Colors.white,
-                border: Border(top: BorderSide(color: Color(0xFFE4E2E2))),
+              decoration: BoxDecoration(
+                color: palette.surface,
+                border: Border(top: BorderSide(color: palette.border)),
               ),
               child: Row(
                 children: [
                   IconButton(
                     onPressed: () {},
-                    icon: const Icon(Icons.add_circle_outline_rounded, color: Color(0xFF747878)),
+                    icon: Icon(Icons.add_circle_outline_rounded, color: palette.textMuted),
                   ),
                   Expanded(
                     child: TextField(
                       controller: _messageController,
-                      style: GoogleFonts.manrope(fontSize: 14),
+                      style: GoogleFonts.manrope(fontSize: 14, color: palette.textPrimary),
                       decoration: InputDecoration(
                         hintText: 'Type a message to Chef...',
-                        hintStyle: GoogleFonts.manrope(fontSize: 13, color: const Color(0xFF747878)),
+                        hintStyle: GoogleFonts.manrope(fontSize: 13, color: palette.textMuted),
                         border: InputBorder.none,
                       ),
                       onSubmitted: (_) => _sendMessage(),
@@ -226,7 +250,7 @@ class _ChatScreenState extends State<ChatScreen> {
                   ),
                   IconButton(
                     onPressed: _sendMessage,
-                    icon: const Icon(Icons.send_rounded, color: Colors.black),
+                    icon: Icon(Icons.send_rounded, color: palette.goldAccent),
                   ),
                 ],
               ),
@@ -237,7 +261,7 @@ class _ChatScreenState extends State<ChatScreen> {
     );
   }
 
-  Widget _buildChip(String label) {
+  Widget _buildChip(String label, AppThemePalette palette) {
     return InkWell(
       onTap: () {
         _messageController.text = label;
@@ -246,15 +270,16 @@ class _ChatScreenState extends State<ChatScreen> {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: palette.surfaceElevated,
           borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: const Color(0xFFE4E2E2)),
+          border: Border.all(color: palette.border),
         ),
         child: Text(
           label,
-          style: GoogleFonts.manrope(fontSize: 12, color: const Color(0xFF1B1C1C)),
+          style: GoogleFonts.manrope(fontSize: 12, color: palette.textPrimary),
         ),
       ),
     );
   }
 }
+

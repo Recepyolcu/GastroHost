@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
+import '../../../core/providers/app_settings_provider.dart';
 import '../../../core/services/supabase_service.dart';
+import '../../../core/theme/app_theme.dart';
 
-class BookingWizardScreen extends StatefulWidget {
+class BookingWizardScreen extends ConsumerStatefulWidget {
   final Map<String, dynamic> provider;
   final Map<String, dynamic> menu;
   final Function(String bookingId) onBookingComplete;
@@ -17,10 +20,10 @@ class BookingWizardScreen extends StatefulWidget {
   });
 
   @override
-  State<BookingWizardScreen> createState() => _BookingWizardScreenState();
+  ConsumerState<BookingWizardScreen> createState() => _BookingWizardScreenState();
 }
 
-class _BookingWizardScreenState extends State<BookingWizardScreen> {
+class _BookingWizardScreenState extends ConsumerState<BookingWizardScreen> {
   DateTime _selectedDate = DateTime.now().add(const Duration(days: 2));
   TimeOfDay _selectedTime = const TimeOfDay(hour: 19, minute: 30);
   int _guestCount = 4;
@@ -44,7 +47,7 @@ class _BookingWizardScreenState extends State<BookingWizardScreen> {
   double get _platformFee => _totalAmount * 0.10; // 10%
   double get _providerEarnings => _totalAmount - _platformFee; // 90%
 
-  Future<void> _selectDate() async {
+  Future<void> _selectDate(bool isDark, AppThemePalette palette) async {
     final DateTime? picked = await showDatePicker(
       context: context,
       initialDate: _selectedDate,
@@ -53,11 +56,18 @@ class _BookingWizardScreenState extends State<BookingWizardScreen> {
       builder: (context, child) {
         return Theme(
           data: Theme.of(context).copyWith(
-            colorScheme: const ColorScheme.light(
-              primary: Color(0xFF7B5800),
-              onPrimary: Colors.white,
-              onSurface: Color(0xFF1B1C1C),
-            ),
+            colorScheme: isDark
+                ? ColorScheme.dark(
+                    primary: palette.goldAccent,
+                    onPrimary: const Color(0xFF0B0D11),
+                    surface: palette.surface,
+                    onSurface: palette.textPrimary,
+                  )
+                : const ColorScheme.light(
+                    primary: Color(0xFF7B5800),
+                    onPrimary: Colors.white,
+                    onSurface: Color(0xFF1B1C1C),
+                  ),
           ),
           child: child!,
         );
@@ -68,18 +78,25 @@ class _BookingWizardScreenState extends State<BookingWizardScreen> {
     }
   }
 
-  Future<void> _selectTime() async {
+  Future<void> _selectTime(bool isDark, AppThemePalette palette) async {
     final TimeOfDay? picked = await showTimePicker(
       context: context,
       initialTime: _selectedTime,
       builder: (context, child) {
         return Theme(
           data: Theme.of(context).copyWith(
-            colorScheme: const ColorScheme.light(
-              primary: Color(0xFF7B5800),
-              onPrimary: Colors.white,
-              onSurface: Color(0xFF1B1C1C),
-            ),
+            colorScheme: isDark
+                ? ColorScheme.dark(
+                    primary: palette.goldAccent,
+                    onPrimary: const Color(0xFF0B0D11),
+                    surface: palette.surface,
+                    onSurface: palette.textPrimary,
+                  )
+                : const ColorScheme.light(
+                    primary: Color(0xFF7B5800),
+                    onPrimary: Colors.white,
+                    onSurface: Color(0xFF1B1C1C),
+                  ),
           ),
           child: child!,
         );
@@ -92,16 +109,19 @@ class _BookingWizardScreenState extends State<BookingWizardScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final settings = ref.watch(appSettingsProvider);
+    final isDark = settings.isDarkMode;
+    final palette = AppThemePalette(isDark);
     final String providerName = widget.provider['name'] ?? (_isHourly ? 'Marcus T.' : 'Chef Julian');
 
     return Scaffold(
-      backgroundColor: const Color(0xFFFBF9F8),
+      backgroundColor: palette.bg,
       appBar: AppBar(
-        backgroundColor: const Color(0xFFFBF9F8),
+        backgroundColor: palette.bg,
         elevation: 0,
         centerTitle: true,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Color(0xFF1B1C1C), size: 18),
+          icon: Icon(Icons.arrow_back_ios_new_rounded, color: palette.textPrimary, size: 18),
           onPressed: () {
             if (widget.onBack != null) {
               widget.onBack!();
@@ -115,11 +135,11 @@ class _BookingWizardScreenState extends State<BookingWizardScreen> {
           style: GoogleFonts.libreCaslonText(
             fontSize: 20,
             fontWeight: FontWeight.bold,
-            color: const Color(0xFF1B1C1C),
+            color: palette.textPrimary,
           ),
         ),
       ),
-      bottomNavigationBar: _buildBottomCheckoutBar(),
+      bottomNavigationBar: _buildBottomCheckoutBar(palette, isDark),
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.fromLTRB(20, 12, 20, 40),
@@ -127,34 +147,38 @@ class _BookingWizardScreenState extends State<BookingWizardScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               // Summary Header Banner
-              _buildHeaderProviderBanner(providerName),
+              _buildHeaderProviderBanner(providerName, palette, isDark),
               const SizedBox(height: 20),
 
               // Step 1: Date, Time & Hours/Guests Picker
               _buildSectionCard(
                 icon: Icons.calendar_today_rounded,
                 title: 'Date & Time',
+                palette: palette,
+                isDark: isDark,
                 child: Column(
                   children: [
                     _buildPickerTile(
                       label: 'Event Date',
                       value: '${_selectedDate.day}/${_selectedDate.month}/${_selectedDate.year}',
                       icon: Icons.edit_calendar_rounded,
-                      onTap: _selectDate,
+                      palette: palette,
+                      onTap: () => _selectDate(isDark, palette),
                     ),
-                    const Padding(
-                      padding: EdgeInsets.symmetric(vertical: 4),
-                      child: Divider(color: Color(0xFFE4E2E2), height: 1),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 4),
+                      child: Divider(color: palette.border, height: 1),
                     ),
                     _buildPickerTile(
                       label: 'Start Time',
                       value: _selectedTime.format(context),
                       icon: Icons.access_time_rounded,
-                      onTap: _selectTime,
+                      palette: palette,
+                      onTap: () => _selectTime(isDark, palette),
                     ),
-                    const Padding(
-                      padding: EdgeInsets.symmetric(vertical: 4),
-                      child: Divider(color: Color(0xFFE4E2E2), height: 1),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 4),
+                      child: Divider(color: palette.border, height: 1),
                     ),
                     // Quantity Selector (Guests for Chef, Hours for Mixologist)
                     Padding(
@@ -170,14 +194,14 @@ class _BookingWizardScreenState extends State<BookingWizardScreen> {
                                 style: GoogleFonts.manrope(
                                   fontSize: 14,
                                   fontWeight: FontWeight.bold,
-                                  color: const Color(0xFF1B1C1C),
+                                  color: palette.textPrimary,
                                 ),
                               ),
                               Text(
-                                '\$${_unitPrice.toStringAsFixed(0)} / ${_isHourly ? 'hour' : 'person'}',
+                                '₺${_unitPrice.toStringAsFixed(0)} / ${_isHourly ? 'hour' : 'person'}',
                                 style: GoogleFonts.manrope(
                                   fontSize: 12,
-                                  color: const Color(0xFF747878),
+                                  color: palette.textMuted,
                                 ),
                               ),
                             ],
@@ -186,6 +210,7 @@ class _BookingWizardScreenState extends State<BookingWizardScreen> {
                             children: [
                               _buildCountBtn(
                                 icon: Icons.remove,
+                                palette: palette,
                                 onTap: (_isHourly ? _hoursCount > 1 : _guestCount > 1)
                                     ? () => setState(() {
                                           if (_isHourly) {
@@ -199,23 +224,26 @@ class _BookingWizardScreenState extends State<BookingWizardScreen> {
                               Padding(
                                 padding: const EdgeInsets.symmetric(horizontal: 14),
                                 child: Text(
-                                  _isHourly ? '$_hoursCount hrs' : '$_guestCount',
+                                  _isHourly ? '$_hoursCount hrs' : '$_guestCount guests',
                                   style: GoogleFonts.manrope(
-                                    fontSize: 15,
+                                    fontSize: 14,
                                     fontWeight: FontWeight.bold,
-                                    color: const Color(0xFF1B1C1C),
+                                    color: palette.textPrimary,
                                   ),
                                 ),
                               ),
                               _buildCountBtn(
                                 icon: Icons.add,
-                                onTap: () => setState(() {
-                                  if (_isHourly) {
-                                    _hoursCount++;
-                                  } else {
-                                    _guestCount++;
-                                  }
-                                }),
+                                palette: palette,
+                                onTap: (_isHourly ? _hoursCount < 12 : _guestCount < 30)
+                                    ? () => setState(() {
+                                          if (_isHourly) {
+                                            _hoursCount++;
+                                          } else {
+                                            _guestCount++;
+                                          }
+                                        })
+                                    : null,
                               ),
                             ],
                           ),
@@ -227,28 +255,35 @@ class _BookingWizardScreenState extends State<BookingWizardScreen> {
               ),
               const SizedBox(height: 20),
 
-              // Step 2: Equipment Checklist (Kitchen or Bar Setup)
+              // Step 2: Kitchen & Bar Equipment Checklist
               _buildSectionCard(
-                icon: _isHourly ? Icons.local_bar_rounded : Icons.soup_kitchen_rounded,
-                title: _isHourly ? 'Bar Setup Check' : 'Kitchen Check',
-                subtitle: 'Confirm required setup for $providerName',
+                icon: _isHourly ? Icons.local_bar_rounded : Icons.countertops_rounded,
+                title: _isHourly ? 'Bar Setup & Equipment' : 'Kitchen Requirements',
+                subtitle: _isHourly
+                    ? 'Confirm available bar space and glassware for cocktail service.'
+                    : 'Confirm available appliances to ensure smooth food prep.',
+                palette: palette,
+                isDark: isDark,
                 child: Column(
                   children: [
                     _buildSwitchTile(
-                      title: _isHourly ? 'Clean bar or countertop space available' : '4-burner stove operating properly',
+                      title: _isHourly ? 'Dedicated bar counter or table' : 'Stovetop / Cooktop accessible',
                       value: _hasStove,
+                      palette: palette,
                       onChanged: (v) => setState(() => _hasStove = v),
                     ),
                     const SizedBox(height: 8),
                     _buildSwitchTile(
-                      title: _isHourly ? 'Glassware provided by host (or request addon)' : 'Working oven for roasting',
+                      title: _isHourly ? 'Bar glassware & shaker access' : 'Working oven accessible',
                       value: _hasOven,
+                      palette: palette,
                       onChanged: (v) => setState(() => _hasOven = v),
                     ),
                     const SizedBox(height: 8),
                     _buildSwitchTile(
                       title: _isHourly ? 'Ice supply & cooler accessible' : 'Blender or food processor',
                       value: _hasBlender,
+                      palette: palette,
                       onChanged: (v) => setState(() => _hasBlender = v),
                     ),
                   ],
@@ -260,19 +295,21 @@ class _BookingWizardScreenState extends State<BookingWizardScreen> {
               _buildSectionCard(
                 icon: Icons.location_on_rounded,
                 title: 'Etkinlik Adresi & Konum Bilgisi',
+                palette: palette,
+                isDark: isDark,
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Row(
                       children: [
-                        const Icon(Icons.near_me_rounded, color: Color(0xFF10B981), size: 18),
+                        Icon(Icons.near_me_rounded, color: palette.emerald, size: 18),
                         const SizedBox(width: 6),
                         Text(
                           'Teslimat Bölgesi: Kadıköy, İstanbul',
                           style: GoogleFonts.manrope(
                             fontSize: 13,
                             fontWeight: FontWeight.bold,
-                            color: const Color(0xFF10B981),
+                            color: palette.emerald,
                           ),
                         ),
                       ],
@@ -280,22 +317,26 @@ class _BookingWizardScreenState extends State<BookingWizardScreen> {
                     const SizedBox(height: 10),
                     Text(
                       'Açık Adres (Hizmet Verilecek Ev/Mekan)',
-                      style: GoogleFonts.manrope(fontSize: 12, fontWeight: FontWeight.w600, color: const Color(0xFF747878)),
+                      style: GoogleFonts.manrope(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: palette.textMuted,
+                      ),
                     ),
                     const SizedBox(height: 6),
                     TextField(
                       controller: _addressController,
                       maxLines: 2,
-                      style: GoogleFonts.manrope(fontSize: 13),
+                      style: GoogleFonts.manrope(fontSize: 13, color: palette.textPrimary),
                       decoration: InputDecoration(
                         hintText: 'Mahalle, Sokak, Bina No, Daire, İç kapı tarifini girin...',
-                        hintStyle: GoogleFonts.manrope(fontSize: 12, color: const Color(0xFFA0A0A0)),
+                        hintStyle: GoogleFonts.manrope(fontSize: 12, color: palette.textMuted.withValues(alpha: 0.6)),
                         filled: true,
-                        fillColor: const Color(0xFFFBF9F8),
+                        fillColor: palette.surfaceElevated,
                         contentPadding: const EdgeInsets.all(12),
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: Color(0xFFE4E2E2))),
-                        enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: Color(0xFFE4E2E2))),
-                        focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: Color(0xFF1B1C1C))),
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide(color: palette.border)),
+                        enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide(color: palette.border)),
+                        focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide(color: palette.goldAccent)),
                       ),
                     ),
                   ],
@@ -307,31 +348,28 @@ class _BookingWizardScreenState extends State<BookingWizardScreen> {
               _buildSectionCard(
                 icon: Icons.shield_outlined,
                 title: 'Escrow Güvencesi & Ödeme Detayı',
-
+                palette: palette,
+                isDark: isDark,
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Container(
                       padding: const EdgeInsets.all(14),
                       decoration: BoxDecoration(
-                        color: const Color(0xFF10B981).withValues(alpha: 0.08),
+                        color: palette.emerald.withValues(alpha: isDark ? 0.12 : 0.08),
                         borderRadius: BorderRadius.circular(14),
-                        border: Border.all(color: const Color(0xFF10B981).withValues(alpha: 0.2)),
+                        border: Border.all(color: palette.emerald.withValues(alpha: 0.25)),
                       ),
                       child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Icon(Icons.verified_user_rounded, color: Color(0xFF10B981), size: 22),
+                          Icon(Icons.lock_clock_rounded, color: palette.emerald, size: 20),
                           const SizedBox(width: 10),
                           Expanded(
                             child: Text(
-                              _isHourly
-                                  ? 'Ödemeniz GastroHost Güvenli Havuzunda bloke edilir. Hizmet süresi tamamlanana kadar barmene aktarılmaz.'
-                                  : 'Ödemeniz GastroHost Güvenli Havuzunda bloke edilir. Hizmet tamamlanana kadar şefe aktarılmaz.',
+                              'Ödemeniz hizmet başarıyla tamamlanana kadar GastroHost Güvenli Escrow Havuzunda bloke edilir. Hizmet bitişinde şefe aktarılır.',
                               style: GoogleFonts.manrope(
                                 fontSize: 12,
-                                fontWeight: FontWeight.w600,
-                                color: const Color(0xFF1B1C1C),
+                                color: isDark ? const Color(0xFF6EE7B7) : const Color(0xFF047857),
                                 height: 1.4,
                               ),
                             ),
@@ -339,21 +377,34 @@ class _BookingWizardScreenState extends State<BookingWizardScreen> {
                         ],
                       ),
                     ),
-                    const SizedBox(height: 16),
+                    const SizedBox(height: 14),
                     _buildFeeRow(
-                      _isHourly ? 'Bar Hizmeti ($_hoursCount saat)' : 'Menü Toplamı ($_guestCount kişi)',
+                      _isHourly
+                          ? 'Saatlik Ücret (₺${_unitPrice.toStringAsFixed(0)} × $_hoursCount saat)'
+                          : 'Kişi Başı Ücret (₺${_unitPrice.toStringAsFixed(0)} × $_guestCount kişi)',
                       '₺${_totalAmount.toStringAsFixed(0)}',
-                      isBold: true,
+                      palette: palette,
                     ),
                     const SizedBox(height: 8),
-                    _buildFeeRow('Platform Komisyonu (%10 dahil)', '₺${_platformFee.toStringAsFixed(0)}'),
+                    _buildFeeRow(
+                      'GastroHost Platform Komisyonu (%10)',
+                      '₺${_platformFee.toStringAsFixed(0)}',
+                      palette: palette,
+                    ),
+                    Divider(color: palette.border, height: 20),
+                    _buildFeeRow(
+                      'Toplam Bloke Edilecek Tutar',
+                      '₺${_totalAmount.toStringAsFixed(0)}',
+                      isBold: true,
+                      palette: palette,
+                    ),
                     const SizedBox(height: 8),
                     _buildFeeRow(
                       _isHourly ? 'Barmen Hakedişi (%90)' : 'Şef Hakedişi (%90)',
                       '₺${_providerEarnings.toStringAsFixed(0)}',
-                      valueColor: const Color(0xFF7B5800),
+                      valueColor: palette.goldAccent,
+                      palette: palette,
                     ),
-
                   ],
                 ),
               ),
@@ -364,16 +415,16 @@ class _BookingWizardScreenState extends State<BookingWizardScreen> {
     );
   }
 
-  Widget _buildHeaderProviderBanner(String providerName) {
+  Widget _buildHeaderProviderBanner(String providerName, AppThemePalette palette, bool isDark) {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: palette.surface,
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: const Color(0xFFE4E2E2)),
+        border: Border.all(color: palette.border),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.03),
+            color: Colors.black.withValues(alpha: isDark ? 0.3 : 0.03),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -385,12 +436,12 @@ class _BookingWizardScreenState extends State<BookingWizardScreen> {
             width: 48,
             height: 48,
             decoration: BoxDecoration(
-              color: const Color(0xFF7B5800).withValues(alpha: 0.1),
+              color: palette.goldAccent.withValues(alpha: 0.15),
               shape: BoxShape.circle,
             ),
             child: Icon(
               _isHourly ? Icons.local_bar_rounded : Icons.restaurant_menu_rounded,
-              color: const Color(0xFF7B5800),
+              color: palette.goldAccent,
               size: 24,
             ),
           ),
@@ -404,14 +455,14 @@ class _BookingWizardScreenState extends State<BookingWizardScreen> {
                   style: GoogleFonts.libreCaslonText(
                     fontSize: 18,
                     fontWeight: FontWeight.bold,
-                    color: const Color(0xFF1B1C1C),
+                    color: palette.textPrimary,
                   ),
                 ),
                 Text(
                   widget.menu['title'] ?? (_isHourly ? 'Signature Craft Cocktail Bar' : 'The Truffle Experience'),
                   style: GoogleFonts.manrope(
                     fontSize: 12,
-                    color: const Color(0xFF747878),
+                    color: palette.textMuted,
                   ),
                 ),
               ],
@@ -420,15 +471,16 @@ class _BookingWizardScreenState extends State<BookingWizardScreen> {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
             decoration: BoxDecoration(
-              color: const Color(0xFFEFEDED),
+              color: palette.surfaceElevated,
               borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: palette.border),
             ),
             child: Text(
               _isHourly ? 'Hourly Rate' : 'Escrow Ready',
               style: GoogleFonts.manrope(
                 fontSize: 11,
                 fontWeight: FontWeight.bold,
-                color: const Color(0xFF7B5800),
+                color: palette.goldAccent,
               ),
             ),
           ),
@@ -442,6 +494,7 @@ class _BookingWizardScreenState extends State<BookingWizardScreen> {
     required String value,
     required IconData icon,
     required VoidCallback onTap,
+    required AppThemePalette palette,
   }) {
     return InkWell(
       onTap: onTap,
@@ -454,19 +507,32 @@ class _BookingWizardScreenState extends State<BookingWizardScreen> {
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(label, style: GoogleFonts.manrope(fontSize: 14, fontWeight: FontWeight.bold, color: const Color(0xFF1B1C1C))),
+                Text(
+                  label,
+                  style: GoogleFonts.manrope(
+                    fontSize: 12,
+                    color: palette.textMuted,
+                  ),
+                ),
                 const SizedBox(height: 2),
-                Text(value, style: GoogleFonts.manrope(fontSize: 13, color: const Color(0xFF747878))),
+                Text(
+                  value,
+                  style: GoogleFonts.manrope(
+                    fontSize: 15,
+                    fontWeight: FontWeight.bold,
+                    color: palette.textPrimary,
+                  ),
+                ),
               ],
             ),
             Container(
               padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
-                color: const Color(0xFFFBF9F8),
+                color: palette.surfaceElevated,
                 borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: const Color(0xFFE4E2E2)),
+                border: Border.all(color: palette.border),
               ),
-              child: Icon(icon, size: 18, color: const Color(0xFF7B5800)),
+              child: Icon(icon, size: 18, color: palette.goldAccent),
             ),
           ],
         ),
@@ -474,7 +540,11 @@ class _BookingWizardScreenState extends State<BookingWizardScreen> {
     );
   }
 
-  Widget _buildCountBtn({required IconData icon, VoidCallback? onTap}) {
+  Widget _buildCountBtn({
+    required IconData icon,
+    VoidCallback? onTap,
+    required AppThemePalette palette,
+  }) {
     final bool isDisabled = onTap == null;
     return InkWell(
       onTap: onTap,
@@ -482,14 +552,14 @@ class _BookingWizardScreenState extends State<BookingWizardScreen> {
       child: Container(
         padding: const EdgeInsets.all(6),
         decoration: BoxDecoration(
-          color: isDisabled ? const Color(0xFFF3F4F6) : const Color(0xFFEFEDED),
+          color: isDisabled ? palette.surfaceElevated.withValues(alpha: 0.5) : palette.surfaceElevated,
           borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: const Color(0xFFE4E2E2)),
+          border: Border.all(color: palette.border),
         ),
         child: Icon(
           icon,
           size: 16,
-          color: isDisabled ? Colors.grey : const Color(0xFF1B1C1C),
+          color: isDisabled ? palette.textMuted : palette.textPrimary,
         ),
       ),
     );
@@ -499,13 +569,14 @@ class _BookingWizardScreenState extends State<BookingWizardScreen> {
     required String title,
     required bool value,
     required ValueChanged<bool> onChanged,
+    required AppThemePalette palette,
   }) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
       decoration: BoxDecoration(
-        color: const Color(0xFFFBF9F8),
+        color: palette.surfaceElevated,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFFE4E2E2)),
+        border: Border.all(color: palette.border),
       ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -516,14 +587,14 @@ class _BookingWizardScreenState extends State<BookingWizardScreen> {
               style: GoogleFonts.manrope(
                 fontSize: 13,
                 fontWeight: FontWeight.w600,
-                color: const Color(0xFF1B1C1C),
+                color: palette.textPrimary,
               ),
             ),
           ),
           Switch.adaptive(
             value: value,
-            activeThumbColor: const Color(0xFF7B5800),
-            activeTrackColor: const Color(0xFF7B5800).withValues(alpha: 0.3),
+            activeThumbColor: palette.goldAccent,
+            activeTrackColor: palette.goldAccent.withValues(alpha: 0.3),
             onChanged: onChanged,
           ),
         ],
@@ -531,7 +602,13 @@ class _BookingWizardScreenState extends State<BookingWizardScreen> {
     );
   }
 
-  Widget _buildFeeRow(String label, String value, {bool isBold = false, Color? valueColor}) {
+  Widget _buildFeeRow(
+    String label,
+    String value, {
+    bool isBold = false,
+    Color? valueColor,
+    required AppThemePalette palette,
+  }) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
@@ -541,7 +618,7 @@ class _BookingWizardScreenState extends State<BookingWizardScreen> {
             style: GoogleFonts.manrope(
               fontSize: 13,
               fontWeight: isBold ? FontWeight.bold : FontWeight.normal,
-              color: isBold ? const Color(0xFF1B1C1C) : const Color(0xFF747878),
+              color: isBold ? palette.textPrimary : palette.textMuted,
             ),
           ),
         ),
@@ -550,7 +627,7 @@ class _BookingWizardScreenState extends State<BookingWizardScreen> {
           style: GoogleFonts.manrope(
             fontSize: 13,
             fontWeight: isBold ? FontWeight.bold : FontWeight.w600,
-            color: valueColor ?? (isBold ? const Color(0xFF1B1C1C) : const Color(0xFF1B1C1C)),
+            color: valueColor ?? (isBold ? palette.textPrimary : palette.textPrimary),
           ),
         ),
       ],
@@ -562,15 +639,17 @@ class _BookingWizardScreenState extends State<BookingWizardScreen> {
     required String title,
     String? subtitle,
     required Widget child,
+    required AppThemePalette palette,
+    required bool isDark,
   }) {
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: palette.surface,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: const Color(0xFFE4E2E2)),
+        border: Border.all(color: palette.border),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.03),
+            color: Colors.black.withValues(alpha: isDark ? 0.3 : 0.03),
             blurRadius: 12,
             offset: const Offset(0, 4),
           ),
@@ -582,7 +661,7 @@ class _BookingWizardScreenState extends State<BookingWizardScreen> {
         children: [
           Row(
             children: [
-              Icon(icon, color: const Color(0xFF7B5800), size: 20),
+              Icon(icon, color: palette.goldAccent, size: 20),
               const SizedBox(width: 10),
               Expanded(
                 child: Text(
@@ -592,7 +671,7 @@ class _BookingWizardScreenState extends State<BookingWizardScreen> {
                   style: GoogleFonts.libreCaslonText(
                     fontSize: 17,
                     fontWeight: FontWeight.bold,
-                    color: const Color(0xFF1B1C1C),
+                    color: palette.textPrimary,
                   ),
                 ),
               ),
@@ -602,7 +681,7 @@ class _BookingWizardScreenState extends State<BookingWizardScreen> {
             const SizedBox(height: 4),
             Text(
               subtitle,
-              style: GoogleFonts.manrope(fontSize: 12, color: const Color(0xFF747878)),
+              style: GoogleFonts.manrope(fontSize: 12, color: palette.textMuted),
             ),
           ],
           const SizedBox(height: 14),
@@ -614,7 +693,7 @@ class _BookingWizardScreenState extends State<BookingWizardScreen> {
 
   bool _isProcessing = false;
 
-  void _showPaymentModalSheet() {
+  void _showPaymentModalSheet(AppThemePalette palette, bool isDark) {
     final nameController = TextEditingController(text: 'Ahmet Yılmaz');
     final cardNumberController = TextEditingController(text: '4543 •••• •••• 0000');
     final expiryController = TextEditingController(text: '12/28');
@@ -634,9 +713,10 @@ class _BookingWizardScreenState extends State<BookingWizardScreen> {
                 top: 20,
                 bottom: MediaQuery.of(context).viewInsets.bottom + 24,
               ),
-              decoration: const BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+              decoration: BoxDecoration(
+                color: palette.surface,
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+                border: Border(top: BorderSide(color: palette.border)),
               ),
               child: SingleChildScrollView(
                 child: Column(
@@ -649,7 +729,7 @@ class _BookingWizardScreenState extends State<BookingWizardScreen> {
                         width: 40,
                         height: 4,
                         decoration: BoxDecoration(
-                          color: Colors.grey.shade300,
+                          color: palette.border,
                           borderRadius: BorderRadius.circular(2),
                         ),
                       ),
@@ -662,10 +742,10 @@ class _BookingWizardScreenState extends State<BookingWizardScreen> {
                         Container(
                           padding: const EdgeInsets.all(8),
                           decoration: BoxDecoration(
-                            color: const Color(0xFF7B5800).withValues(alpha: 0.1),
+                            color: palette.goldAccent.withValues(alpha: 0.15),
                             borderRadius: BorderRadius.circular(12),
                           ),
-                          child: const Icon(Icons.payment_rounded, color: Color(0xFF7B5800), size: 22),
+                          child: Icon(Icons.payment_rounded, color: palette.goldAccent, size: 22),
                         ),
                         const SizedBox(width: 12),
                         Expanded(
@@ -677,14 +757,14 @@ class _BookingWizardScreenState extends State<BookingWizardScreen> {
                                 style: GoogleFonts.libreCaslonText(
                                   fontSize: 18,
                                   fontWeight: FontWeight.bold,
-                                  color: const Color(0xFF1B1C1C),
+                                  color: palette.textPrimary,
                                 ),
                               ),
                               Text(
                                 'GastroHost Pazaryeri 3D Secure Proteksiyonu',
                                 style: GoogleFonts.manrope(
                                   fontSize: 11,
-                                  color: const Color(0xFF747878),
+                                  color: palette.textMuted,
                                 ),
                               ),
                             ],
@@ -698,13 +778,13 @@ class _BookingWizardScreenState extends State<BookingWizardScreen> {
                     Container(
                       padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
-                        color: const Color(0xFF10B981).withValues(alpha: 0.08),
+                        color: palette.emerald.withValues(alpha: isDark ? 0.12 : 0.08),
                         borderRadius: BorderRadius.circular(14),
-                        border: Border.all(color: const Color(0xFF10B981).withValues(alpha: 0.25)),
+                        border: Border.all(color: palette.emerald.withValues(alpha: 0.25)),
                       ),
                       child: Row(
                         children: [
-                          const Icon(Icons.shield_outlined, color: Color(0xFF10B981), size: 20),
+                          Icon(Icons.shield_outlined, color: palette.emerald, size: 20),
                           const SizedBox(width: 10),
                           Expanded(
                             child: Text(
@@ -712,7 +792,7 @@ class _BookingWizardScreenState extends State<BookingWizardScreen> {
                               style: GoogleFonts.manrope(
                                 fontSize: 11.5,
                                 fontWeight: FontWeight.w600,
-                                color: const Color(0xFF1B1C1C),
+                                color: palette.textPrimary,
                                 height: 1.35,
                               ),
                             ),
@@ -723,33 +803,39 @@ class _BookingWizardScreenState extends State<BookingWizardScreen> {
                     const SizedBox(height: 18),
 
                     // Cardholder Name
-                    Text('Kart Üzerindeki İsim', style: GoogleFonts.manrope(fontSize: 12, fontWeight: FontWeight.bold, color: const Color(0xFF1B1C1C))),
+                    Text('Kart Üzerindeki İsim', style: GoogleFonts.manrope(fontSize: 12, fontWeight: FontWeight.bold, color: palette.textPrimary)),
                     const SizedBox(height: 6),
                     TextField(
                       controller: nameController,
-                      style: GoogleFonts.manrope(fontSize: 14, fontWeight: FontWeight.w600),
+                      style: GoogleFonts.manrope(fontSize: 14, fontWeight: FontWeight.w600, color: palette.textPrimary),
                       decoration: InputDecoration(
                         isDense: true,
+                        filled: true,
+                        fillColor: palette.surfaceElevated,
                         contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFFE4E2E2))),
-                        enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFFE4E2E2))),
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: palette.border)),
+                        enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: palette.border)),
+                        focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: palette.goldAccent)),
                       ),
                     ),
                     const SizedBox(height: 12),
 
                     // Card Number
-                    Text('Kart Numarası', style: GoogleFonts.manrope(fontSize: 12, fontWeight: FontWeight.bold, color: const Color(0xFF1B1C1C))),
+                    Text('Kart Numarası', style: GoogleFonts.manrope(fontSize: 12, fontWeight: FontWeight.bold, color: palette.textPrimary)),
                     const SizedBox(height: 6),
                     TextField(
                       controller: cardNumberController,
                       keyboardType: TextInputType.number,
-                      style: GoogleFonts.manrope(fontSize: 14, fontWeight: FontWeight.w600),
+                      style: GoogleFonts.manrope(fontSize: 14, fontWeight: FontWeight.w600, color: palette.textPrimary),
                       decoration: InputDecoration(
                         isDense: true,
-                        suffixIcon: const Icon(Icons.credit_card_rounded, color: Color(0xFF7B5800), size: 20),
+                        filled: true,
+                        fillColor: palette.surfaceElevated,
+                        suffixIcon: Icon(Icons.credit_card_rounded, color: palette.goldAccent, size: 20),
                         contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFFE4E2E2))),
-                        enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFFE4E2E2))),
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: palette.border)),
+                        enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: palette.border)),
+                        focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: palette.goldAccent)),
                       ),
                     ),
                     const SizedBox(height: 12),
@@ -761,16 +847,19 @@ class _BookingWizardScreenState extends State<BookingWizardScreen> {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text('SKT (AY/YIL)', style: GoogleFonts.manrope(fontSize: 12, fontWeight: FontWeight.bold, color: const Color(0xFF1B1C1C))),
+                              Text('Son Kullanma', style: GoogleFonts.manrope(fontSize: 12, fontWeight: FontWeight.bold, color: palette.textPrimary)),
                               const SizedBox(height: 6),
                               TextField(
                                 controller: expiryController,
-                                style: GoogleFonts.manrope(fontSize: 14, fontWeight: FontWeight.w600),
+                                style: GoogleFonts.manrope(fontSize: 14, fontWeight: FontWeight.w600, color: palette.textPrimary),
                                 decoration: InputDecoration(
                                   isDense: true,
+                                  filled: true,
+                                  fillColor: palette.surfaceElevated,
                                   contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFFE4E2E2))),
-                                  enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFFE4E2E2))),
+                                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: palette.border)),
+                                  enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: palette.border)),
+                                  focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: palette.goldAccent)),
                                 ),
                               ),
                             ],
@@ -781,17 +870,20 @@ class _BookingWizardScreenState extends State<BookingWizardScreen> {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text('CVC / CVV', style: GoogleFonts.manrope(fontSize: 12, fontWeight: FontWeight.bold, color: const Color(0xFF1B1C1C))),
+                              Text('CVC / CVV', style: GoogleFonts.manrope(fontSize: 12, fontWeight: FontWeight.bold, color: palette.textPrimary)),
                               const SizedBox(height: 6),
                               TextField(
                                 controller: cvcController,
                                 obscureText: true,
-                                style: GoogleFonts.manrope(fontSize: 14, fontWeight: FontWeight.w600),
+                                style: GoogleFonts.manrope(fontSize: 14, fontWeight: FontWeight.w600, color: palette.textPrimary),
                                 decoration: InputDecoration(
                                   isDense: true,
+                                  filled: true,
+                                  fillColor: palette.surfaceElevated,
                                   contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFFE4E2E2))),
-                                  enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFFE4E2E2))),
+                                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: palette.border)),
+                                  enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: palette.border)),
+                                  focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: palette.goldAccent)),
                                 ),
                               ),
                             ],
@@ -812,8 +904,8 @@ class _BookingWizardScreenState extends State<BookingWizardScreen> {
                                 _processPayAndReserve();
                               },
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.black,
-                          foregroundColor: Colors.white,
+                          backgroundColor: isDark ? palette.goldAccent : Colors.black,
+                          foregroundColor: isDark ? const Color(0xFF0B0D11) : Colors.white,
                           padding: const EdgeInsets.symmetric(vertical: 16),
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                           elevation: 0,
@@ -903,15 +995,15 @@ class _BookingWizardScreenState extends State<BookingWizardScreen> {
     }
   }
 
-  Widget _buildBottomCheckoutBar() {
+  Widget _buildBottomCheckoutBar(AppThemePalette palette, bool isDark) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
       decoration: BoxDecoration(
-        color: Colors.white,
-        border: const Border(top: BorderSide(color: Color(0xFFE4E2E2))),
+        color: palette.surface,
+        border: Border(top: BorderSide(color: palette.border)),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
+            color: Colors.black.withValues(alpha: isDark ? 0.3 : 0.05),
             blurRadius: 10,
             offset: const Offset(0, -4),
           ),
@@ -933,12 +1025,12 @@ class _BookingWizardScreenState extends State<BookingWizardScreen> {
                     style: GoogleFonts.manrope(
                       fontSize: 17,
                       fontWeight: FontWeight.bold,
-                      color: const Color(0xFF1B1C1C),
+                      color: palette.textPrimary,
                     ),
                   ),
                   Row(
                     children: [
-                      const Icon(Icons.shield_outlined, size: 12, color: Color(0xFF7B5800)),
+                      Icon(Icons.shield_outlined, size: 12, color: palette.goldAccent),
                       const SizedBox(width: 4),
                       Expanded(
                         child: Text(
@@ -947,7 +1039,7 @@ class _BookingWizardScreenState extends State<BookingWizardScreen> {
                           overflow: TextOverflow.ellipsis,
                           style: GoogleFonts.manrope(
                             fontSize: 11,
-                            color: const Color(0xFF7B5800),
+                            color: palette.goldAccent,
                             fontWeight: FontWeight.bold,
                           ),
                         ),
@@ -959,19 +1051,22 @@ class _BookingWizardScreenState extends State<BookingWizardScreen> {
             ),
             const SizedBox(width: 12),
             ElevatedButton(
-              onPressed: _isProcessing ? null : _showPaymentModalSheet,
+              onPressed: _isProcessing ? null : () => _showPaymentModalSheet(palette, isDark),
               style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.black,
-                foregroundColor: Colors.white,
+                backgroundColor: isDark ? palette.goldAccent : Colors.black,
+                foregroundColor: isDark ? const Color(0xFF0B0D11) : Colors.white,
                 padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
                 elevation: 0,
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
               ),
               child: _isProcessing
-                  ? const SizedBox(
+                  ? SizedBox(
                       width: 18,
                       height: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: isDark ? const Color(0xFF0B0D11) : Colors.white,
+                      ),
                     )
                   : Row(
                       mainAxisSize: MainAxisSize.min,
@@ -991,10 +1086,6 @@ class _BookingWizardScreenState extends State<BookingWizardScreen> {
           ],
         ),
       ),
-
     );
   }
-
 }
-
-

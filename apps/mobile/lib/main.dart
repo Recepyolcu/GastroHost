@@ -13,6 +13,8 @@ import 'features/provider/presentation/provider_menu_management_screen.dart';
 import 'features/admin/presentation/admin_approval_simulator_screen.dart';
 import 'features/chat/presentation/chat_screen.dart';
 import 'features/profile/presentation/profile_screen.dart';
+import 'features/settings/presentation/settings_screen.dart';
+import 'core/providers/app_settings_provider.dart';
 
 import 'core/services/supabase_service.dart';
 
@@ -26,14 +28,14 @@ void main() async {
   runApp(const ProviderScope(child: GastroHostApp()));
 }
 
-class GastroHostApp extends StatefulWidget {
+class GastroHostApp extends ConsumerStatefulWidget {
   const GastroHostApp({super.key});
 
   @override
-  State<GastroHostApp> createState() => _GastroHostAppState();
+  ConsumerState<GastroHostApp> createState() => _GastroHostAppState();
 }
 
-class _GastroHostAppState extends State<GastroHostApp> {
+class _GastroHostAppState extends ConsumerState<GastroHostApp> {
   // Navigation Flow State: 'login' -> 'home' -> 'detail' -> 'wizard' -> 'tracker' | 'provider_dashboard' | 'chat'
   String _currentScreen = 'home';
 
@@ -56,6 +58,13 @@ class _GastroHostAppState extends State<GastroHostApp> {
   void _checkActiveSession() async {
     try {
       final supabaseService = SupabaseService();
+      final session = supabaseService.currentSession;
+      if (session != null && session.isExpired) {
+        debugPrint('Active session expired and host unreachable. Purging local session.');
+        await supabaseService.clearLocalSession();
+        return;
+      }
+
       final user = supabaseService.currentUser;
       if (user != null) {
         final role = user.userMetadata?['role'] ?? 'customer';
@@ -76,7 +85,12 @@ class _GastroHostAppState extends State<GastroHostApp> {
           setState(() => _currentScreen = 'home');
         }
       }
-    } catch (_) {}
+    } catch (e) {
+      debugPrint('Supabase session check error, clearing stale session: $e');
+      try {
+        await SupabaseService().clearLocalSession();
+      } catch (_) {}
+    }
   }
 
   int _getNavIndex() {
@@ -100,45 +114,56 @@ class _GastroHostAppState extends State<GastroHostApp> {
 
   @override
   Widget build(BuildContext context) {
+    final settings = ref.watch(appSettingsProvider);
     final activeBody = _buildActiveScreenContent();
+    final isDark = settings.isDarkMode;
 
     return MaterialApp(
       title: 'GastroHost',
       debugShowCheckedModeBanner: false,
-      theme: AppTheme.darkTheme,
+      theme: AppTheme.lightTheme,
+      darkTheme: AppTheme.darkTheme,
+      themeMode: settings.themeMode,
       home: _isMainCustomerTab()
           ? Scaffold(
-              backgroundColor: const Color(0xFFFBF9F8),
+              backgroundColor: isDark ? const Color(0xFF121417) : const Color(0xFFFBF9F8),
               body: activeBody,
-              bottomNavigationBar: _buildPersistentBottomNav(),
+              bottomNavigationBar: _buildPersistentBottomNav(isDark),
             )
           : activeBody,
     );
   }
 
-  Widget _buildPersistentBottomNav() {
+  Widget _buildPersistentBottomNav(bool isDark) {
     final selectedIndex = _getNavIndex();
 
     return Container(
       height: 64,
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        border: Border(top: BorderSide(color: Color(0xFFE4E2E2))),
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF1A1D22) : Colors.white,
+        border: Border(
+          top: BorderSide(
+            color: isDark ? const Color(0xFF282D35) : const Color(0xFFE4E2E2),
+          ),
+        ),
       ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceAround,
         children: [
-          _buildNavItem(0, Icons.explore_rounded, 'Explore', selectedIndex),
-          _buildNavItem(1, Icons.calendar_today_outlined, 'Bookings', selectedIndex),
-          _buildNavItem(2, Icons.chat_bubble_outline_rounded, 'Messages', selectedIndex),
-          _buildNavItem(3, Icons.person_outline_rounded, 'Profile', selectedIndex),
+          _buildNavItem(0, Icons.explore_rounded, 'Explore', selectedIndex, isDark),
+          _buildNavItem(1, Icons.calendar_today_outlined, 'Bookings', selectedIndex, isDark),
+          _buildNavItem(2, Icons.chat_bubble_outline_rounded, 'Messages', selectedIndex, isDark),
+          _buildNavItem(3, Icons.person_outline_rounded, 'Profile', selectedIndex, isDark),
         ],
       ),
     );
   }
 
-  Widget _buildNavItem(int index, IconData icon, String label, int currentIndex) {
+  Widget _buildNavItem(int index, IconData icon, String label, int currentIndex, bool isDark) {
     final isSelected = currentIndex == index;
+    final selectedColor = isDark ? const Color(0xFFFDC34D) : Colors.black;
+    final unselectedColor = isDark ? const Color(0xFF94A3B8) : const Color(0xFF747878);
+
     return InkWell(
       onTap: () {
         setState(() {
@@ -164,7 +189,7 @@ class _GastroHostAppState extends State<GastroHostApp> {
           Icon(
             icon,
             size: 22,
-            color: isSelected ? Colors.black : const Color(0xFF747878),
+            color: isSelected ? selectedColor : unselectedColor,
           ),
           const SizedBox(height: 2),
           Text(
@@ -172,7 +197,7 @@ class _GastroHostAppState extends State<GastroHostApp> {
             style: GoogleFonts.manrope(
               fontSize: 11,
               fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-              color: isSelected ? Colors.black : const Color(0xFF747878),
+              color: isSelected ? selectedColor : unselectedColor,
             ),
           ),
         ],
@@ -385,6 +410,19 @@ class _GastroHostAppState extends State<GastroHostApp> {
           onOpenAdminSimulator: () {
             setState(() {
               _currentScreen = 'admin_approval_simulator';
+            });
+          },
+          onOpenSettings: () {
+            setState(() {
+              _currentScreen = 'settings';
+            });
+          },
+        );
+      case 'settings':
+        return SettingsScreen(
+          onBack: () {
+            setState(() {
+              _currentScreen = 'profile';
             });
           },
         );

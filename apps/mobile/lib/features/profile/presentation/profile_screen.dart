@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../core/services/user_location_service.dart';
 import '../../../core/services/supabase_service.dart';
+import '../../../core/providers/app_settings_provider.dart';
+import '../../settings/presentation/settings_screen.dart';
 
 
 class ProfileScreen extends ConsumerWidget {
@@ -12,6 +14,7 @@ class ProfileScreen extends ConsumerWidget {
   final VoidCallback? onStartChefOnboarding;
   final VoidCallback? onManageMenus;
   final VoidCallback? onOpenAdminSimulator;
+  final VoidCallback? onOpenSettings;
 
   const ProfileScreen({
     super.key,
@@ -21,6 +24,7 @@ class ProfileScreen extends ConsumerWidget {
     this.onStartChefOnboarding,
     this.onManageMenus,
     this.onOpenAdminSimulator,
+    this.onOpenSettings,
   });
 
   // 1. My Bookings History Modal Sheet
@@ -541,16 +545,23 @@ class ProfileScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-
     final userProfile = ref.watch(userProfileProvider);
+    final settings = ref.watch(appSettingsProvider);
+    final isDark = settings.isDarkMode;
+
+    final bgColor = isDark ? const Color(0xFF121417) : const Color(0xFFFBF9F8);
+    final cardBg = isDark ? const Color(0xFF1A1D22) : Colors.white;
+    final borderColor = isDark ? const Color(0xFF282D35) : const Color(0xFFE4E2E2);
+    final textColor = isDark ? const Color(0xFFF3F4F6) : const Color(0xFF1B1C1C);
+    final mutedTextColor = isDark ? const Color(0xFF94A3B8) : const Color(0xFF747878);
 
     return Scaffold(
-      backgroundColor: const Color(0xFFFBF9F8),
+      backgroundColor: bgColor,
       appBar: AppBar(
-        backgroundColor: const Color(0xFFFBF9F8),
+        backgroundColor: bgColor,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_rounded, color: Colors.black),
+          icon: Icon(Icons.arrow_back_rounded, color: textColor),
           onPressed: onBack,
         ),
         title: Text(
@@ -558,7 +569,7 @@ class ProfileScreen extends ConsumerWidget {
           style: GoogleFonts.libreCaslonText(
             fontSize: 20,
             fontWeight: FontWeight.bold,
-            color: Colors.black,
+            color: textColor,
           ),
         ),
         actions: [
@@ -568,6 +579,20 @@ class ProfileScreen extends ConsumerWidget {
               icon: const Icon(Icons.swap_horiz_rounded, color: Color(0xFF7B5800)),
               tooltip: 'Switch to Chef Mode',
             ),
+          IconButton(
+            onPressed: () {
+              if (onOpenSettings != null) {
+                onOpenSettings!();
+              } else {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => const SettingsScreen()),
+                );
+              }
+            },
+            icon: Icon(Icons.settings_outlined, color: textColor),
+            tooltip: 'Ayarlar & Tercihler',
+          ),
         ],
       ),
       body: SafeArea(
@@ -578,10 +603,10 @@ class ProfileScreen extends ConsumerWidget {
             children: [
               // 1. Dynamic Header Profile Card
               Material(
-                color: Colors.white,
+                color: cardBg,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(20),
-                  side: const BorderSide(color: Color(0xFFE4E2E2)),
+                  side: BorderSide(color: borderColor),
                 ),
                 child: Padding(
                   padding: const EdgeInsets.all(20),
@@ -613,14 +638,14 @@ class ProfileScreen extends ConsumerWidget {
                                       style: GoogleFonts.libreCaslonText(
                                         fontSize: 18,
                                         fontWeight: FontWeight.bold,
-                                        color: const Color(0xFF1B1C1C),
+                                        color: textColor,
                                       ),
                                     ),
                                     const SizedBox(width: 6),
                                     Container(
                                       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                                       decoration: BoxDecoration(
-                                        color: const Color(0xFFEFEDED),
+                                        color: isDark ? const Color(0xFF282D35) : const Color(0xFFEFEDED),
                                         borderRadius: BorderRadius.circular(8),
                                       ),
                                       child: Text(
@@ -628,7 +653,7 @@ class ProfileScreen extends ConsumerWidget {
                                         style: GoogleFonts.manrope(
                                           fontSize: 10,
                                           fontWeight: FontWeight.bold,
-                                          color: const Color(0xFF7B5800),
+                                          color: isDark ? const Color(0xFFFDC34D) : const Color(0xFF7B5800),
                                         ),
                                       ),
                                     ),
@@ -639,7 +664,7 @@ class ProfileScreen extends ConsumerWidget {
                                   userProfile.email,
                                   style: GoogleFonts.manrope(
                                     fontSize: 12,
-                                    color: const Color(0xFF747878),
+                                    color: mutedTextColor,
                                   ),
                                 ),
                                 const SizedBox(height: 4),
@@ -652,7 +677,7 @@ class ProfileScreen extends ConsumerWidget {
                                       style: GoogleFonts.manrope(
                                         fontSize: 11,
                                         fontWeight: FontWeight.bold,
-                                        color: const Color(0xFF1B1C1C),
+                                        color: textColor,
                                       ),
                                     ),
                                   ],
@@ -663,16 +688,16 @@ class ProfileScreen extends ConsumerWidget {
                         ],
                       ),
                       const SizedBox(height: 16),
-                      const Divider(color: Color(0xFFE4E2E2)),
+                      Divider(color: borderColor),
                       const SizedBox(height: 12),
 
                       // Stats Row
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceAround,
                         children: [
-                          _buildStatItem('12', 'Events Hosted'),
-                          _buildStatItem('8', 'Saved Chefs'),
-                          _buildStatItem('1.450', 'GastroPoints', isGold: true),
+                          _buildStatItem('12', 'Events Hosted', textColor, mutedTextColor),
+                          _buildStatItem('8', 'Saved Chefs', textColor, mutedTextColor),
+                          _buildStatItem('1.450', 'GastroPoints', textColor, mutedTextColor, isGold: true),
                         ],
                       ),
                     ],
@@ -683,10 +708,10 @@ class ProfileScreen extends ConsumerWidget {
 
               // 2. Culinary & Allergy Passport
               Material(
-                color: Colors.white,
+                color: cardBg,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(20),
-                  side: const BorderSide(color: Color(0xFFE4E2E2)),
+                  side: BorderSide(color: borderColor),
                 ),
                 child: Padding(
                   padding: const EdgeInsets.all(20),
@@ -702,7 +727,7 @@ class ProfileScreen extends ConsumerWidget {
                             style: GoogleFonts.libreCaslonText(
                               fontSize: 16,
                               fontWeight: FontWeight.bold,
-                              color: const Color(0xFF1B1C1C),
+                              color: textColor,
                             ),
                           ),
                         ],
@@ -710,7 +735,7 @@ class ProfileScreen extends ConsumerWidget {
                       const SizedBox(height: 4),
                       Text(
                         'Shared automatically with booking chefs for customized preparation.',
-                        style: GoogleFonts.manrope(fontSize: 11, color: const Color(0xFF747878)),
+                        style: GoogleFonts.manrope(fontSize: 11, color: mutedTextColor),
                       ),
                       const SizedBox(height: 14),
 
@@ -718,10 +743,10 @@ class ProfileScreen extends ConsumerWidget {
                         spacing: 8,
                         runSpacing: 8,
                         children: [
-                          _buildBadge('Gluten-Free Option'),
-                          _buildBadge('No Shellfish'),
-                          _buildBadge('Italian Fine Dining', isPrimary: true),
-                          _buildBadge('4-Burner Stove'),
+                          _buildBadge('Gluten-Free Option', isDark),
+                          _buildBadge('No Shellfish', isDark),
+                          _buildBadge('Italian Fine Dining', isDark, isPrimary: true),
+                          _buildBadge('4-Burner Stove', isDark),
                         ],
                       ),
                     ],
@@ -732,42 +757,52 @@ class ProfileScreen extends ConsumerWidget {
 
               // 3. Quick Options Section (Connected to Sub-Screen Modals)
               Material(
-                color: Colors.white,
+                color: cardBg,
                 clipBehavior: Clip.antiAlias,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(20),
-                  side: const BorderSide(color: Color(0xFFE4E2E2)),
+                  side: BorderSide(color: borderColor),
                 ),
                 child: Column(
                   children: [
                     _buildOptionTile(
                       icon: Icons.history_rounded,
                       title: 'My Bookings History',
+                      textColor: textColor,
+                      mutedTextColor: mutedTextColor,
                       onTap: () => _showBookingsHistorySheet(context),
                     ),
-                    const Divider(height: 1, color: Color(0xFFE4E2E2)),
+                    Divider(height: 1, color: borderColor),
                     _buildOptionTile(
                       icon: Icons.account_balance_wallet_outlined,
                       title: 'Wallet & Escrow Balance (₺1,450.00)',
+                      textColor: textColor,
+                      mutedTextColor: mutedTextColor,
                       onTap: () => _showWalletEscrowSheet(context),
                     ),
-                    const Divider(height: 1, color: Color(0xFFE4E2E2)),
+                    Divider(height: 1, color: borderColor),
                     _buildOptionTile(
                       icon: Icons.location_on_outlined,
                       title: 'Saved Location (${userProfile.location})',
+                      textColor: textColor,
+                      mutedTextColor: mutedTextColor,
                       onTap: () => _showSavedLocationsSheet(context, userProfile.location),
                     ),
-                    const Divider(height: 1, color: Color(0xFFE4E2E2)),
+                    Divider(height: 1, color: borderColor),
                     if (userProfile.isVerifiedChef) ...[
                       _buildOptionTile(
                         icon: Icons.swap_horiz_rounded,
                         title: 'Switch to Chef Dashboard',
+                        textColor: textColor,
+                        mutedTextColor: mutedTextColor,
                         onTap: onSwitchToChef,
                       ),
-                      const Divider(height: 1, color: Color(0xFFE4E2E2)),
+                      Divider(height: 1, color: borderColor),
                       _buildOptionTile(
                         icon: Icons.restaurant_menu_rounded,
                         title: 'Menülerim ve Paketlerim (Manage Menus)',
+                        textColor: textColor,
+                        mutedTextColor: mutedTextColor,
                         onTap: () {
                           if (onManageMenus != null) {
                             onManageMenus!();
@@ -781,6 +816,8 @@ class ProfileScreen extends ConsumerWidget {
                       _buildOptionTile(
                         icon: Icons.edit_note_rounded,
                         title: 'Başvuruyu İncele & Düzenle (Şef / Barmen Kaydı)',
+                        textColor: textColor,
+                        mutedTextColor: mutedTextColor,
                         onTap: () {
                           if (onStartChefOnboarding != null) {
                             onStartChefOnboarding!();
@@ -789,13 +826,32 @@ class ProfileScreen extends ConsumerWidget {
                           }
                         },
                       ),
-                    const Divider(height: 1, color: Color(0xFFE4E2E2)),
+                    Divider(height: 1, color: borderColor),
                     _buildOptionTile(
                       icon: Icons.admin_panel_settings_outlined,
                       title: 'Admin Belge Onay Simülasyonu (Test)',
+                      textColor: textColor,
+                      mutedTextColor: mutedTextColor,
                       onTap: () {
                         if (onOpenAdminSimulator != null) {
                           onOpenAdminSimulator!();
+                        }
+                      },
+                    ),
+                    Divider(height: 1, color: borderColor),
+                    _buildOptionTile(
+                      icon: Icons.settings_outlined,
+                      title: 'Ayarlar & Tercihler (Settings)',
+                      textColor: textColor,
+                      mutedTextColor: mutedTextColor,
+                      onTap: () {
+                        if (onOpenSettings != null) {
+                          onOpenSettings!();
+                        } else {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(builder: (context) => const SettingsScreen()),
+                          );
                         }
                       },
                     ),
@@ -832,7 +888,7 @@ class ProfileScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildStatItem(String val, String label, {bool isGold = false}) {
+  Widget _buildStatItem(String val, String label, Color textColor, Color mutedTextColor, {bool isGold = false}) {
     return Column(
       children: [
         Text(
@@ -840,7 +896,7 @@ class ProfileScreen extends ConsumerWidget {
           style: GoogleFonts.libreCaslonText(
             fontSize: 20,
             fontWeight: FontWeight.bold,
-            color: isGold ? const Color(0xFF7B5800) : const Color(0xFF1B1C1C),
+            color: isGold ? const Color(0xFF7B5800) : textColor,
           ),
         ),
         const SizedBox(height: 2),
@@ -848,29 +904,37 @@ class ProfileScreen extends ConsumerWidget {
           label,
           style: GoogleFonts.manrope(
             fontSize: 11,
-            color: const Color(0xFF747878),
+            color: mutedTextColor,
           ),
         ),
       ],
     );
   }
 
-  Widget _buildBadge(String text, {bool isPrimary = false}) {
+  Widget _buildBadge(String text, bool isDark, {bool isPrimary = false}) {
+    final badgeBg = isPrimary
+        ? const Color(0xFF7B5800).withValues(alpha: 0.15)
+        : (isDark ? const Color(0xFF282D35) : const Color(0xFFEFEDED));
+    final badgeBorder = isPrimary
+        ? const Color(0xFF7B5800)
+        : (isDark ? const Color(0xFF383E48) : const Color(0xFFE4E2E2));
+    final badgeText = isPrimary
+        ? const Color(0xFF7B5800)
+        : (isDark ? const Color(0xFFF3F4F6) : const Color(0xFF1B1C1C));
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       decoration: BoxDecoration(
-        color: isPrimary ? const Color(0xFF7B5800).withValues(alpha: 0.1) : const Color(0xFFEFEDED),
+        color: badgeBg,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: isPrimary ? const Color(0xFF7B5800) : const Color(0xFFE4E2E2),
-        ),
+        border: Border.all(color: badgeBorder),
       ),
       child: Text(
         text,
         style: GoogleFonts.manrope(
           fontSize: 11,
           fontWeight: isPrimary ? FontWeight.bold : FontWeight.normal,
-          color: isPrimary ? const Color(0xFF7B5800) : const Color(0xFF1B1C1C),
+          color: badgeText,
         ),
       ),
     );
@@ -879,20 +943,22 @@ class ProfileScreen extends ConsumerWidget {
   Widget _buildOptionTile({
     required IconData icon,
     required String title,
+    required Color textColor,
+    required Color mutedTextColor,
     required VoidCallback onTap,
   }) {
     return ListTile(
       onTap: onTap,
-      leading: Icon(icon, color: const Color(0xFF1B1C1C), size: 22),
+      leading: Icon(icon, color: textColor, size: 22),
       title: Text(
         title,
         style: GoogleFonts.manrope(
           fontSize: 14,
           fontWeight: FontWeight.w600,
-          color: const Color(0xFF1B1C1C),
+          color: textColor,
         ),
       ),
-      trailing: const Icon(Icons.chevron_right_rounded, color: Color(0xFF747878)),
+      trailing: Icon(Icons.chevron_right_rounded, color: mutedTextColor),
     );
   }
 }

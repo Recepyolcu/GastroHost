@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../core/services/user_location_service.dart';
+import '../../../core/providers/app_settings_provider.dart';
+import '../../../core/theme/app_theme.dart';
 
 class HomeDiscoveryScreen extends ConsumerStatefulWidget {
   final Function(Map<String, dynamic> provider, Map<String, dynamic> menu) onSelectMenu;
@@ -75,16 +77,15 @@ class _HomeDiscoveryScreenState extends ConsumerState<HomeDiscoveryScreen> {
     },
   ];
 
-
-
-
-
   @override
   Widget build(BuildContext context) {
     final userProfile = ref.watch(userProfileProvider);
+    final settings = ref.watch(appSettingsProvider);
+    final isDark = settings.isDarkMode;
+    final palette = AppThemePalette(isDark);
 
     return Scaffold(
-      backgroundColor: const Color(0xFFFBF9F8),
+      backgroundColor: palette.bg,
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -101,19 +102,23 @@ class _HomeDiscoveryScreenState extends ConsumerState<HomeDiscoveryScreen> {
                     child: Container(
                       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                       decoration: BoxDecoration(
-                        color: const Color(0xFF10B981).withValues(alpha: 0.10),
+                        color: palette.emeraldGlow,
                         borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: const Color(0xFF10B981).withValues(alpha: 0.3)),
+                        border: Border.all(
+                          color: isDark
+                              ? palette.emerald.withValues(alpha: 0.45)
+                              : palette.emerald.withValues(alpha: 0.30),
+                        ),
                       ),
                       child: Row(
                         children: [
-                          const Icon(Icons.my_location_rounded, color: Color(0xFF10B981), size: 18),
+                          Icon(Icons.my_location_rounded, color: palette.emerald, size: 18),
                           const SizedBox(width: 6),
                           if (userProfile.isLoadingLocation) ...[
-                            const SizedBox(
+                            SizedBox(
                               width: 14,
                               height: 14,
-                              child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF10B981)),
+                              child: CircularProgressIndicator(strokeWidth: 2, color: palette.emerald),
                             ),
                             const SizedBox(width: 6),
                             Text(
@@ -121,7 +126,7 @@ class _HomeDiscoveryScreenState extends ConsumerState<HomeDiscoveryScreen> {
                               style: GoogleFonts.manrope(
                                 fontSize: 13,
                                 fontWeight: FontWeight.bold,
-                                color: const Color(0xFF10B981),
+                                color: palette.emerald,
                               ),
                             ),
                           ] else ...[
@@ -130,11 +135,11 @@ class _HomeDiscoveryScreenState extends ConsumerState<HomeDiscoveryScreen> {
                               style: GoogleFonts.manrope(
                                 fontSize: 14,
                                 fontWeight: FontWeight.bold,
-                                color: const Color(0xFF1B1C1C),
+                                color: palette.textPrimary,
                               ),
                             ),
                             const SizedBox(width: 6),
-                            const Icon(Icons.refresh_rounded, color: Color(0xFF10B981), size: 16),
+                            Icon(Icons.refresh_rounded, color: palette.emerald, size: 16),
                           ],
                         ],
                       ),
@@ -142,7 +147,7 @@ class _HomeDiscoveryScreenState extends ConsumerState<HomeDiscoveryScreen> {
                   ),
                   IconButton(
                     onPressed: () {},
-                    icon: const Icon(Icons.search_rounded, color: Colors.black, size: 22),
+                    icon: Icon(Icons.search_rounded, color: palette.textPrimary, size: 22),
                   ),
                 ],
               ),
@@ -164,18 +169,33 @@ class _HomeDiscoveryScreenState extends ConsumerState<HomeDiscoveryScreen> {
                       child: Container(
                         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
                         decoration: BoxDecoration(
-                          color: isSelected ? const Color(0xFF000000) : Colors.white,
+                          color: isSelected
+                              ? (isDark ? palette.goldAccent : Colors.black)
+                              : palette.surface,
                           borderRadius: BorderRadius.circular(24),
                           border: Border.all(
-                            color: isSelected ? Colors.black : const Color(0xFFE4E2E2),
+                            color: isSelected
+                                ? (isDark ? palette.goldAccent : Colors.black)
+                                : palette.border,
                           ),
+                          boxShadow: isSelected && isDark
+                              ? [
+                                  BoxShadow(
+                                    color: palette.goldAccent.withValues(alpha: 0.3),
+                                    blurRadius: 10,
+                                    offset: const Offset(0, 2),
+                                  ),
+                                ]
+                              : null,
                         ),
                         child: Text(
                           _categories[index],
                           style: GoogleFonts.manrope(
                             fontSize: 14,
-                            fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
-                            color: isSelected ? Colors.white : const Color(0xFF1B1C1C),
+                            fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                            color: isSelected
+                                ? (isDark ? const Color(0xFF0B0D11) : Colors.white)
+                                : palette.textPrimary,
                           ),
                         ),
                       ),
@@ -191,6 +211,7 @@ class _HomeDiscoveryScreenState extends ConsumerState<HomeDiscoveryScreen> {
                 height: 380,
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: palette.border),
                   image: const DecorationImage(
                     image: NetworkImage(
                       'https://lh3.googleusercontent.com/aida-public/AB6AXuDrWm9_kH_wWY63k9nHgX6YfxUXxi0uKRMrD22f-unKkAaqP-9Fb81T7f3QXF91nfQShUZjHbOSx4Jy1g_BOzVLsW-0-Ykh6Z3ZWXpcmV-1LPK6yDqQvAh6tX4PhPryF6G4_a8do59HQcSIiFWva55p-6I6U-9cmfVa7l6h3vJ747MMGJ7F-sWBQTCS2-eIDhCW8LI6B84NhfxiVvZ2cbgGZ5GIVk3bd1tQrAfp3oNJvBPnJS6uA9Pw',
@@ -206,8 +227,8 @@ class _HomeDiscoveryScreenState extends ConsumerState<HomeDiscoveryScreen> {
                       begin: Alignment.bottomCenter,
                       end: Alignment.topCenter,
                       colors: [
-                        Colors.black.withValues(alpha: 0.85),
-                        Colors.black.withValues(alpha: 0.20),
+                        Colors.black.withValues(alpha: 0.90),
+                        Colors.black.withValues(alpha: 0.35),
                         Colors.transparent,
                       ],
                     ),
@@ -234,13 +255,23 @@ class _HomeDiscoveryScreenState extends ConsumerState<HomeDiscoveryScreen> {
                         ),
                       ),
                       const SizedBox(height: 16),
-                      Text(
-                        'Explore Experiences',
-                        style: GoogleFonts.manrope(
-                          fontSize: 14,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.white,
-                        ),
+                      Row(
+                        children: [
+                          Text(
+                            'Explore Experiences',
+                            style: GoogleFonts.manrope(
+                              fontSize: 14,
+                              fontWeight: FontWeight.bold,
+                              color: isDark ? const Color(0xFFFDC34D) : Colors.white,
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                          Icon(
+                            Icons.arrow_forward_rounded,
+                            size: 16,
+                            color: isDark ? const Color(0xFFFDC34D) : Colors.white,
+                          ),
+                        ],
                       ),
                     ],
                   ),
@@ -257,7 +288,7 @@ class _HomeDiscoveryScreenState extends ConsumerState<HomeDiscoveryScreen> {
                     style: GoogleFonts.libreCaslonText(
                       fontSize: 18,
                       fontWeight: FontWeight.bold,
-                      color: const Color(0xFF1B1C1C),
+                      color: palette.textPrimary,
                     ),
                   ),
                   Row(
@@ -267,11 +298,11 @@ class _HomeDiscoveryScreenState extends ConsumerState<HomeDiscoveryScreen> {
                         style: GoogleFonts.manrope(
                           fontSize: 13,
                           fontWeight: FontWeight.w600,
-                          color: const Color(0xFF7B5800),
+                          color: palette.goldAccent,
                         ),
                       ),
                       const SizedBox(width: 4),
-                      const Icon(Icons.arrow_forward_rounded, size: 14, color: Color(0xFF7B5800)),
+                      Icon(Icons.arrow_forward_rounded, size: 14, color: palette.goldAccent),
                     ],
                   ),
                 ],
@@ -279,7 +310,7 @@ class _HomeDiscoveryScreenState extends ConsumerState<HomeDiscoveryScreen> {
               const SizedBox(height: 16),
 
               // Recommended Chef Cards
-              ..._recommendedChefs.map((chef) => _buildChefCard(chef)),
+              ..._recommendedChefs.map((chef) => _buildChefCard(chef, palette, isDark)),
 
               const SizedBox(height: 24),
 
@@ -292,7 +323,7 @@ class _HomeDiscoveryScreenState extends ConsumerState<HomeDiscoveryScreen> {
                     style: GoogleFonts.libreCaslonText(
                       fontSize: 18,
                       fontWeight: FontWeight.bold,
-                      color: const Color(0xFF1B1C1C),
+                      color: palette.textPrimary,
                     ),
                   ),
                   Row(
@@ -302,11 +333,11 @@ class _HomeDiscoveryScreenState extends ConsumerState<HomeDiscoveryScreen> {
                         style: GoogleFonts.manrope(
                           fontSize: 13,
                           fontWeight: FontWeight.w600,
-                          color: const Color(0xFF7B5800),
+                          color: palette.goldAccent,
                         ),
                       ),
                       const SizedBox(width: 4),
-                      const Icon(Icons.arrow_forward_rounded, size: 14, color: Color(0xFF7B5800)),
+                      Icon(Icons.arrow_forward_rounded, size: 14, color: palette.goldAccent),
                     ],
                   ),
                 ],
@@ -314,7 +345,7 @@ class _HomeDiscoveryScreenState extends ConsumerState<HomeDiscoveryScreen> {
               const SizedBox(height: 16),
 
               // Top Rated Mixologist Cards
-              ..._topMixologists.map((mix) => _buildMixologistCard(mix)),
+              ..._topMixologists.map((mix) => _buildMixologistCard(mix, palette, isDark)),
 
               const SizedBox(height: 24),
             ],
@@ -325,20 +356,22 @@ class _HomeDiscoveryScreenState extends ConsumerState<HomeDiscoveryScreen> {
   }
 
   // Chef Card Widget
-  Widget _buildChefCard(Map<String, dynamic> chef) {
+  Widget _buildChefCard(Map<String, dynamic> chef, AppThemePalette palette, bool isDark) {
     return Container(
       margin: const EdgeInsets.only(bottom: 20),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: palette.surface,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFE4E2E2)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
-            blurRadius: 16,
-            offset: const Offset(0, 4),
-          ),
-        ],
+        border: Border.all(color: palette.border),
+        boxShadow: isDark
+            ? null
+            : [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.04),
+                  blurRadius: 16,
+                  offset: const Offset(0, 4),
+                ),
+              ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -361,8 +394,14 @@ class _HomeDiscoveryScreenState extends ConsumerState<HomeDiscoveryScreen> {
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                   decoration: BoxDecoration(
-                    color: const Color(0xFF10B981),
+                    color: palette.emerald,
                     borderRadius: BorderRadius.circular(8),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.2),
+                        blurRadius: 4,
+                      ),
+                    ],
                   ),
                   child: Row(
                     children: [
@@ -386,19 +425,22 @@ class _HomeDiscoveryScreenState extends ConsumerState<HomeDiscoveryScreen> {
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                   decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.90),
+                    color: isDark
+                        ? const Color(0xFF13171F).withValues(alpha: 0.92)
+                        : Colors.white.withValues(alpha: 0.90),
                     borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: palette.border),
                   ),
                   child: Row(
                     children: [
-                      const Icon(Icons.star_rounded, color: Color(0xFF7B5800), size: 14),
+                      Icon(Icons.star_rounded, color: palette.goldAccent, size: 14),
                       const SizedBox(width: 2),
                       Text(
                         chef['rating'],
                         style: GoogleFonts.manrope(
                           fontSize: 12,
                           fontWeight: FontWeight.bold,
-                          color: const Color(0xFF1B1C1C),
+                          color: palette.textPrimary,
                         ),
                       ),
                     ],
@@ -407,7 +449,6 @@ class _HomeDiscoveryScreenState extends ConsumerState<HomeDiscoveryScreen> {
               ),
             ],
           ),
-
 
           Padding(
             padding: const EdgeInsets.all(16.0),
@@ -419,10 +460,10 @@ class _HomeDiscoveryScreenState extends ConsumerState<HomeDiscoveryScreen> {
                   children: [
                     Text(
                       chef['name'],
-                      style: GoogleFonts.manrope(
-                        fontSize: 16,
+                      style: GoogleFonts.libreCaslonText(
+                        fontSize: 18,
                         fontWeight: FontWeight.bold,
-                        color: const Color(0xFF1B1C1C),
+                        color: palette.textPrimary,
                       ),
                     ),
                     Text(
@@ -430,7 +471,7 @@ class _HomeDiscoveryScreenState extends ConsumerState<HomeDiscoveryScreen> {
                       style: GoogleFonts.manrope(
                         fontSize: 14,
                         fontWeight: FontWeight.bold,
-                        color: const Color(0xFF7B5800),
+                        color: palette.goldAccent,
                       ),
                     ),
                   ],
@@ -440,7 +481,7 @@ class _HomeDiscoveryScreenState extends ConsumerState<HomeDiscoveryScreen> {
                   chef['description'],
                   style: GoogleFonts.manrope(
                     fontSize: 13,
-                    color: const Color(0xFF747878),
+                    color: palette.textMuted,
                     height: 1.3,
                   ),
                 ),
@@ -452,14 +493,16 @@ class _HomeDiscoveryScreenState extends ConsumerState<HomeDiscoveryScreen> {
                       margin: const EdgeInsets.only(right: 8),
                       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
                       decoration: BoxDecoration(
+                        color: palette.surfaceElevated,
                         borderRadius: BorderRadius.circular(20),
-                        border: Border.all(color: const Color(0xFFE4E2E2)),
+                        border: Border.all(color: palette.borderSubtle),
                       ),
                       child: Text(
                         t,
                         style: GoogleFonts.manrope(
                           fontSize: 11,
-                          color: const Color(0xFF747878),
+                          fontWeight: FontWeight.w500,
+                          color: palette.textMuted,
                         ),
                       ),
                     );
@@ -481,7 +524,8 @@ class _HomeDiscoveryScreenState extends ConsumerState<HomeDiscoveryScreen> {
                     }),
                     style: OutlinedButton.styleFrom(
                       padding: const EdgeInsets.symmetric(vertical: 12),
-                      side: const BorderSide(color: Color(0xFFE4E2E2)),
+                      backgroundColor: isDark ? palette.surfaceElevated : Colors.transparent,
+                      side: BorderSide(color: palette.border),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(10),
                       ),
@@ -490,8 +534,8 @@ class _HomeDiscoveryScreenState extends ConsumerState<HomeDiscoveryScreen> {
                       'View Menu',
                       style: GoogleFonts.manrope(
                         fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                        color: const Color(0xFF1B1C1C),
+                        fontWeight: FontWeight.bold,
+                        color: palette.textPrimary,
                       ),
                     ),
                   ),
@@ -504,21 +548,23 @@ class _HomeDiscoveryScreenState extends ConsumerState<HomeDiscoveryScreen> {
     );
   }
 
-  Widget _buildMixologistCard(Map<String, dynamic> mix) {
+  Widget _buildMixologistCard(Map<String, dynamic> mix, AppThemePalette palette, bool isDark) {
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: palette.surface,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFE4E2E2)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
-            blurRadius: 12,
-            offset: const Offset(0, 2),
-          ),
-        ],
+        border: Border.all(color: palette.border),
+        boxShadow: isDark
+            ? null
+            : [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.04),
+                  blurRadius: 12,
+                  offset: const Offset(0, 2),
+                ),
+              ],
       ),
       child: Row(
         children: [
@@ -542,22 +588,22 @@ class _HomeDiscoveryScreenState extends ConsumerState<HomeDiscoveryScreen> {
                   children: [
                     Text(
                       mix['name'],
-                      style: GoogleFonts.manrope(
-                        fontSize: 15,
+                      style: GoogleFonts.libreCaslonText(
+                        fontSize: 16,
                         fontWeight: FontWeight.bold,
-                        color: const Color(0xFF1B1C1C),
+                        color: palette.textPrimary,
                       ),
                     ),
                     Row(
                       children: [
-                        const Icon(Icons.star_rounded, color: Color(0xFF7B5800), size: 14),
+                        Icon(Icons.star_rounded, color: palette.goldAccent, size: 14),
                         const SizedBox(width: 2),
                         Text(
                           mix['rating'],
                           style: GoogleFonts.manrope(
                             fontSize: 12,
                             fontWeight: FontWeight.bold,
-                            color: const Color(0xFF1B1C1C),
+                            color: palette.textPrimary,
                           ),
                         ),
                       ],
@@ -569,14 +615,16 @@ class _HomeDiscoveryScreenState extends ConsumerState<HomeDiscoveryScreen> {
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                   decoration: BoxDecoration(
+                    color: palette.surfaceElevated,
                     borderRadius: BorderRadius.circular(6),
-                    border: Border.all(color: const Color(0xFFE4E2E2)),
+                    border: Border.all(color: palette.borderSubtle),
                   ),
                   child: Text(
                     mix['tag'],
                     style: GoogleFonts.manrope(
                       fontSize: 10,
-                      color: const Color(0xFF747878),
+                      fontWeight: FontWeight.w500,
+                      color: palette.textMuted,
                     ),
                   ),
                 ),
@@ -590,7 +638,7 @@ class _HomeDiscoveryScreenState extends ConsumerState<HomeDiscoveryScreen> {
                       style: GoogleFonts.manrope(
                         fontSize: 13,
                         fontWeight: FontWeight.bold,
-                        color: const Color(0xFF7B5800),
+                        color: palette.goldAccent,
                       ),
                     ),
                     OutlinedButton(
@@ -611,7 +659,8 @@ class _HomeDiscoveryScreenState extends ConsumerState<HomeDiscoveryScreen> {
                         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
                         minimumSize: Size.zero,
                         tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                        side: const BorderSide(color: Color(0xFFE4E2E2)),
+                        backgroundColor: isDark ? palette.surfaceElevated : Colors.transparent,
+                        side: BorderSide(color: palette.border),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(8),
                         ),
@@ -620,8 +669,8 @@ class _HomeDiscoveryScreenState extends ConsumerState<HomeDiscoveryScreen> {
                         'Book',
                         style: GoogleFonts.manrope(
                           fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                          color: const Color(0xFF1B1C1C),
+                          fontWeight: FontWeight.bold,
+                          color: palette.textPrimary,
                         ),
                       ),
                     ),
@@ -635,3 +684,4 @@ class _HomeDiscoveryScreenState extends ConsumerState<HomeDiscoveryScreen> {
     );
   }
 }
+

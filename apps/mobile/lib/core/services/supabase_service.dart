@@ -11,10 +11,28 @@ class SupabaseService {
 
   // Initialize Supabase in main.dart
   static Future<void> initialize() async {
-    await Supabase.initialize(
-      url: SupabaseConstants.supabaseUrl,
-      publishableKey: SupabaseConstants.supabaseAnonKey,
-    );
+    try {
+      await Supabase.initialize(
+        url: SupabaseConstants.supabaseUrl,
+        publishableKey: SupabaseConstants.supabaseAnonKey,
+      );
+
+      // If an expired token is cached from an unreachable/old project, clear it to prevent infinite refresh retry loops
+      final session = Supabase.instance.client.auth.currentSession;
+      if (session != null && session.isExpired) {
+        debugPrint('Expired Supabase session detected with unreachable host. Purging stale local session.');
+        await Supabase.instance.client.auth.signOut(scope: SignOutScope.local);
+      }
+    } catch (e) {
+      debugPrint('Supabase initialize error: $e');
+    }
+  }
+
+  // Helper to clear local stale session
+  Future<void> clearLocalSession() async {
+    try {
+      await client.auth.signOut(scope: SignOutScope.local);
+    } catch (_) {}
   }
 
   // --- Authentication ---
