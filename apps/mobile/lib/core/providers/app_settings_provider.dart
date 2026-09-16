@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:geocoding/geocoding.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class AppSettingsState {
   final ThemeMode themeMode;
@@ -62,8 +63,59 @@ class AppSettingsState {
 }
 
 class AppSettingsNotifier extends StateNotifier<AppSettingsState> {
+  static const String _keyThemeMode = 'gastrohost_theme_mode';
+  static const String _keyNotifications = 'gastrohost_notifications_enabled';
+  static const String _keyOrderUpdates = 'gastrohost_order_updates_enabled';
+  static const String _keyPromotional = 'gastrohost_promotional_enabled';
+  static const String _keyChefMessages = 'gastrohost_chef_messages_enabled';
+  static const String _keyLanguage = 'gastrohost_language';
+  static const String _keyCurrency = 'gastrohost_currency';
+  static const String _keySound = 'gastrohost_sound_enabled';
+  static const String _keyHaptic = 'gastrohost_haptic_enabled';
+
   AppSettingsNotifier() : super(const AppSettingsState()) {
+    _loadPersistedSettings();
     _checkInitialPermissions();
+  }
+
+  Future<void> _loadPersistedSettings() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+
+      // Theme Mode Persistence
+      final themeStr = prefs.getString(_keyThemeMode);
+      ThemeMode loadedThemeMode = state.themeMode;
+      if (themeStr == 'dark') {
+        loadedThemeMode = ThemeMode.dark;
+      } else if (themeStr == 'light') {
+        loadedThemeMode = ThemeMode.light;
+      } else if (themeStr == 'system') {
+        loadedThemeMode = ThemeMode.system;
+      }
+
+      final notifications = prefs.getBool(_keyNotifications) ?? state.notificationsEnabled;
+      final orderUpdates = prefs.getBool(_keyOrderUpdates) ?? state.orderUpdatesEnabled;
+      final promotional = prefs.getBool(_keyPromotional) ?? state.promotionalEnabled;
+      final chefMessages = prefs.getBool(_keyChefMessages) ?? state.chefMessagesEnabled;
+      final language = prefs.getString(_keyLanguage) ?? state.language;
+      final currency = prefs.getString(_keyCurrency) ?? state.currency;
+      final sound = prefs.getBool(_keySound) ?? state.soundEnabled;
+      final haptic = prefs.getBool(_keyHaptic) ?? state.hapticEnabled;
+
+      state = state.copyWith(
+        themeMode: loadedThemeMode,
+        notificationsEnabled: notifications,
+        orderUpdatesEnabled: orderUpdates,
+        promotionalEnabled: promotional,
+        chefMessagesEnabled: chefMessages,
+        language: language,
+        currency: currency,
+        soundEnabled: sound,
+        hapticEnabled: haptic,
+      );
+    } catch (e) {
+      debugPrint('Error loading persisted settings: $e');
+    }
   }
 
   Future<void> _checkInitialPermissions() async {
@@ -77,35 +129,70 @@ class AppSettingsNotifier extends StateNotifier<AppSettingsState> {
     } catch (_) {}
   }
 
-  void toggleTheme(bool isDark) {
-    state = state.copyWith(
-      themeMode: isDark ? ThemeMode.dark : ThemeMode.light,
-    );
+  Future<void> toggleTheme(bool isDark) async {
+    final newMode = isDark ? ThemeMode.dark : ThemeMode.light;
+    state = state.copyWith(themeMode: newMode);
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_keyThemeMode, isDark ? 'dark' : 'light');
+    } catch (e) {
+      debugPrint('Error saving theme mode: $e');
+    }
   }
 
-  void setThemeMode(ThemeMode mode) {
+  Future<void> setThemeMode(ThemeMode mode) async {
     state = state.copyWith(themeMode: mode);
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_keyThemeMode, mode.name);
+    } catch (e) {
+      debugPrint('Error saving theme mode: $e');
+    }
   }
 
-  void toggleNotifications(bool enabled) {
+  Future<void> toggleNotifications(bool enabled) async {
     state = state.copyWith(
       notificationsEnabled: enabled,
       orderUpdatesEnabled: enabled ? state.orderUpdatesEnabled : false,
       promotionalEnabled: enabled ? state.promotionalEnabled : false,
       chefMessagesEnabled: enabled ? state.chefMessagesEnabled : false,
     );
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool(_keyNotifications, enabled);
+    } catch (e) {
+      debugPrint('Error saving notifications: $e');
+    }
   }
 
-  void toggleOrderUpdates(bool enabled) {
+  Future<void> toggleOrderUpdates(bool enabled) async {
     state = state.copyWith(orderUpdatesEnabled: enabled);
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool(_keyOrderUpdates, enabled);
+    } catch (e) {
+      debugPrint('Error saving order updates: $e');
+    }
   }
 
-  void togglePromotional(bool enabled) {
+  Future<void> togglePromotional(bool enabled) async {
     state = state.copyWith(promotionalEnabled: enabled);
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool(_keyPromotional, enabled);
+    } catch (e) {
+      debugPrint('Error saving promotional settings: $e');
+    }
   }
 
-  void toggleChefMessages(bool enabled) {
+  Future<void> toggleChefMessages(bool enabled) async {
     state = state.copyWith(chefMessagesEnabled: enabled);
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool(_keyChefMessages, enabled);
+    } catch (e) {
+      debugPrint('Error saving chef messages settings: $e');
+    }
   }
 
   Future<bool> requestLocationPermission() async {
@@ -177,20 +264,44 @@ class AppSettingsNotifier extends StateNotifier<AppSettingsState> {
     }
   }
 
-  void setLanguage(String language) {
+  Future<void> setLanguage(String language) async {
     state = state.copyWith(language: language);
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_keyLanguage, language);
+    } catch (e) {
+      debugPrint('Error saving language: $e');
+    }
   }
 
-  void setCurrency(String currency) {
+  Future<void> setCurrency(String currency) async {
     state = state.copyWith(currency: currency);
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_keyCurrency, currency);
+    } catch (e) {
+      debugPrint('Error saving currency: $e');
+    }
   }
 
-  void toggleSound(bool enabled) {
+  Future<void> toggleSound(bool enabled) async {
     state = state.copyWith(soundEnabled: enabled);
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool(_keySound, enabled);
+    } catch (e) {
+      debugPrint('Error saving sound setting: $e');
+    }
   }
 
-  void toggleHaptic(bool enabled) {
+  Future<void> toggleHaptic(bool enabled) async {
     state = state.copyWith(hapticEnabled: enabled);
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool(_keyHaptic, enabled);
+    } catch (e) {
+      debugPrint('Error saving haptic setting: $e');
+    }
   }
 }
 
