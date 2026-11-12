@@ -99,45 +99,272 @@ class SupabaseService {
     return List<Map<String, dynamic>>.from(response);
   }
 
+  // Fetch Rich Discovery Providers (Chefs & Mixologists) with Menus, Profiles & PostGIS Distance
+  Future<List<Map<String, dynamic>>> getDiscoveryProviders({
+    double latitude = 40.9833,
+    double longitude = 29.0254,
+  }) async {
+    final Map<String, double> distanceMap = {};
+    try {
+      final nearby = await getNearbyProviders(
+        latitude: latitude,
+        longitude: longitude,
+        targetType: 'all',
+      );
+      for (final row in nearby) {
+        final pid = row['provider_id']?.toString();
+        final dist = (row['distance_km'] as num?)?.toDouble();
+        if (pid != null && dist != null) {
+          distanceMap[pid] = dist;
+        }
+      }
+    } catch (e) {
+      debugPrint('getNearbyProviders RPC fallback: $e');
+    }
+
+    final response = await client
+        .from('provider_profiles')
+        .select('*, profiles!user_id(*), menus(*)')
+        .eq('is_available_now', true)
+        .order('rating_avg', ascending: false);
+
+    final List<Map<String, dynamic>> result = [];
+    for (final raw in List<Map<String, dynamic>>.from(response)) {
+      final id = raw['id']?.toString() ?? '';
+      final providerType = raw['provider_type']?.toString() ?? 'chef';
+      final isBartender = providerType == 'bartender';
+      final profile = raw['profiles'] as Map<String, dynamic>? ?? {};
+      final rawMenus = List<Map<String, dynamic>>.from(raw['menus'] as List? ?? [])
+          .where((m) => m['is_active'] == true)
+          .toList();
+
+      final fullName = profile['full_name']?.toString().trim().isNotEmpty == true
+          ? profile['full_name'].toString()
+          : '${raw['first_name'] ?? ''} ${raw['last_name'] ?? ''}'.trim();
+
+      final hourlyRate = (raw['hourly_rate'] as num?)?.toDouble() ?? 850.0;
+      double unitPrice = isBartender ? hourlyRate : 1650.0;
+      if (!isBartender && rawMenus.isNotEmpty) {
+        final prices = rawMenus
+            .map((m) => (m['price_per_person'] as num?)?.toDouble() ?? 1650.0)
+            .toList()
+          ..sort();
+        unitPrice = prices.first;
+      } else if (isBartender && rawMenus.isNotEmpty) {
+        unitPrice = (rawMenus.first['price_per_person'] as num?)?.toDouble() ?? hourlyRate;
+      }
+
+      final specialties = raw['specialties'] is Map<String, dynamic>
+          ? raw['specialties'] as Map<String, dynamic>
+          : <String, dynamic>{};
+      final cuisines = List<String>.from(specialties['cuisines'] as List? ?? []);
+      final cocktails = List<String>.from(specialties['cocktails'] as List? ?? []);
+      final dietary = List<String>.from(specialties['dietary'] as List? ?? []);
+      final tags = isBartender
+          ? (cocktails.isNotEmpty ? cocktails : ['Craft Cocktails', 'Mixology'])
+          : (cuisines.isNotEmpty ? cuisines : ['Fine Dining', 'Özel Şef']);
+
+      final portfolioImages = List<String>.from(raw['portfolio_images'] as List? ?? []);
+      final avatarUrl = profile['avatar_url']?.toString() ??
+          (portfolioImages.isNotEmpty
+              ? portfolioImages.first
+              : 'https://images.unsplash.com/photo-1577219491135-ce391730fb2c?w=800&q=80');
+
+      final distKm = distanceMap[id] ?? 2.4;
+      final ratingAvg = ((raw['rating_avg'] as num?)?.toDouble() ?? 5.0).toStringAsFixed(1);
+
+      result.add({
+        'id': id,
+        'provider_id': id,
+        'user_id': raw['user_id'],
+        'provider_type': providerType,
+        'name': fullName.isNotEmpty ? fullName : (isBartender ? 'Marcus Thorne' : 'Chef Julian'),
+        'role': raw['title']?.toString() ??
+            (isBartender ? 'Master Mixologist & Bar Uzmanı' : 'Executive Private Chef'),
+        'title': raw['title'],
+        'price': isBartender
+            ? '₺${unitPrice.toStringAsFixed(0)}/saat'
+            : '₺${unitPrice.toStringAsFixed(0)}/kişi',
+        'unit_price': unitPrice,
+        'hourly_rate': hourlyRate,
+        'rating': ratingAvg,
+        'total_reviews': raw['total_reviews'] ?? 0,
+        'completed_bookings_count': raw['completed_bookings_count'] ?? 0,
+        'distance_km': '${distKm.toStringAsFixed(1)} km',
+        'distance_num': distKm,
+        'description': raw['bio']?.toString() ?? '',
+        'bio': raw['bio']?.toString() ?? '',
+        'education': raw['education']?.toString() ?? 'Uluslararası Gastronomi Akademisi',
+        'experience_years': raw['experience_years'] ?? 5,
+        'city_region': raw['city_region']?.toString() ?? 'İstanbul',
+        'tags': tags,
+        'dietary_tags': dietary,
+        'tag': tags.first,
+        'image': avatarUrl,
+        'avatar': avatarUrl,
+        'phone': profile['phone']?.toString() ?? raw['phone']?.toString() ?? '+90 532 890 12 34',
+        'portfolio_images': portfolioImages,
+        'verification_badges': raw['verification_badges'] ?? const {},
+        'is_verified': raw['is_verified'] ?? true,
+        'menus': rawMenus,
+      });
+    }
+
+    result.sort((a, b) => ((a['distance_num'] as num?) ?? 99).compareTo((b['distance_num'] as num?) ?? 99));
+    return result;
+  }
+
+  // Resolve provider_profiles.id from either provider_profiles.id or auth user_id
+  Future<String> _resolveProviderProfileId(String providerOrUserId) async {
+    try {
+      final byId = await client
+          .from('provider_profiles')
+          .select('id')
+          .eq('id', providerOrUserId)
+          .maybeSingle();
+      if (byId != null && byId['id'] != null) {
+        return byId['id'].toString();
+      }
+      final byUserId = await client
+          .from('provider_profiles')
+          .select('id')
+          .eq('user_id', providerOrUserId)
+          .maybeSingle();
+      if (byUserId != null && byUserId['id'] != null) {
+        return byUserId['id'].toString();
+      }
+    } catch (_) {}
+    return providerOrUserId;
+  }
+
+  Map<String, dynamic> _normalizeMenuFromDb(Map<String, dynamic> raw) {
+    final map = Map<String, dynamic>.from(raw);
+    final pricingType = map['pricing_type']?.toString() ?? 'per_person';
+    final isBartender = pricingType == 'hourly' ||
+        (map['category']?.toString().toLowerCase().contains('cocktail') ?? false) ||
+        (map['category']?.toString().toLowerCase().contains('bar') ?? false);
+    final rawCourses = map['courses'] as List? ?? const [];
+    final items = rawCourses.map((c) {
+      if (c is Map) {
+        final type = c['type'] ?? c['course'] ?? '';
+        final name = c['name'] ?? c['title'] ?? '';
+        final desc = c['desc'] ?? c['description'] ?? '';
+        if (type.toString().isNotEmpty && name.toString().isNotEmpty) {
+          return '$type: $name';
+        }
+        if (name.toString().isNotEmpty && desc.toString().isNotEmpty) {
+          return '$name — $desc';
+        }
+        return name.toString();
+      }
+      return c.toString();
+    }).where((s) => s.isNotEmpty).toList();
+
+    map['price'] = (map['price_per_person'] as num?)?.toDouble() ?? 1200.0;
+    map['min_limit'] = map['min_guests'] ?? (isBartender ? 2 : 4);
+    map['image'] = map['image_url'] ?? 'https://images.unsplash.com/photo-1544025162-d76694265947?w=800&q=80';
+    map['items'] = items;
+    map['tags'] = (map['dietary_tags'] as List?)?.map((e) => e.toString()).toList() ?? <String>[];
+    map['type'] = isBartender ? 'bartender' : 'chef';
+    return map;
+  }
+
+  Map<String, dynamic> _sanitizeMenuForDb(
+    Map<String, dynamic> menuData, {
+    String? resolvedProviderId,
+  }) {
+    final isBartender = menuData['type'] == 'bartender' || menuData['pricing_type'] == 'hourly';
+    final price = (menuData['price_per_person'] as num?)?.toDouble() ??
+        (menuData['price'] as num?)?.toDouble() ??
+        (isBartender ? 950.0 : 1200.0);
+    final minGuests = (menuData['min_guests'] as num?)?.toInt() ??
+        (menuData['min_limit'] as num?)?.toInt() ??
+        (isBartender ? 2 : 4);
+    final maxGuests = (menuData['max_guests'] as num?)?.toInt() ?? 20;
+
+    final rawCourses = menuData['courses'] ?? menuData['items'] ?? const [];
+    final List<Map<String, dynamic>> formattedCourses = [];
+    if (rawCourses is List) {
+      for (int i = 0; i < rawCourses.length; i++) {
+        final item = rawCourses[i];
+        if (item is Map<String, dynamic>) {
+          formattedCourses.add(item);
+        } else if (item is String && item.trim().isNotEmpty) {
+          formattedCourses.add({
+            'course': '${i + 1}. Aşama',
+            'name': item.trim(),
+            'desc': '',
+          });
+        }
+      }
+    }
+
+    final rawTags = menuData['dietary_tags'] ?? menuData['tags'] ?? const [];
+    final dietaryTags = (rawTags is List) ? rawTags.map((e) => e.toString()).toList() : <String>[];
+
+    return {
+      if (resolvedProviderId != null) 'provider_id': resolvedProviderId,
+      'title': menuData['title']?.toString() ?? 'Özel Tadım Menüsü',
+      'description': menuData['description']?.toString() ?? '',
+      'category': menuData['category']?.toString() ?? (isBartender ? 'Signature Craft Cocktails' : 'Fine Dining & Tasting'),
+      'pricing_type': menuData['pricing_type']?.toString() ?? (isBartender ? 'hourly' : 'per_person'),
+      'price_per_person': price,
+      'min_guests': minGuests,
+      'max_guests': maxGuests,
+      'prep_time_minutes': (menuData['prep_time_minutes'] as num?)?.toInt() ?? 120,
+      'ingredients_included': menuData['ingredients_included'] as bool? ?? true,
+      'courses': formattedCourses,
+      'dietary_tags': dietaryTags,
+      'image_url': (menuData['image_url'] ?? menuData['image'])?.toString(),
+      'is_active': menuData['is_active'] as bool? ?? true,
+    };
+  }
+
   // Get Menus for a Specific Provider
   Future<List<Map<String, dynamic>>> getProviderMenus(String providerId) async {
+    final realProviderId = await _resolveProviderProfileId(providerId);
     final response = await client
         .from('menus')
         .select()
-        .eq('provider_id', providerId)
+        .eq('provider_id', realProviderId)
         .eq('is_active', true);
-    return List<Map<String, dynamic>>.from(response);
+    return List<Map<String, dynamic>>.from(response).map(_normalizeMenuFromDb).toList();
   }
 
   // Get All Menus for Provider (including inactive)
   Future<List<Map<String, dynamic>>> getProviderAllMenus(String providerId) async {
+    final realProviderId = await _resolveProviderProfileId(providerId);
     final response = await client
         .from('menus')
         .select()
-        .eq('provider_id', providerId)
+        .eq('provider_id', realProviderId)
         .order('created_at', ascending: false);
-    return List<Map<String, dynamic>>.from(response);
+    return List<Map<String, dynamic>>.from(response).map(_normalizeMenuFromDb).toList();
   }
 
   // Create New Menu / Cocktail Package
   Future<Map<String, dynamic>> createMenu(Map<String, dynamic> menuData) async {
+    final rawProvId = menuData['provider_id']?.toString() ?? currentUser?.id ?? '';
+    final realProviderId = await _resolveProviderProfileId(rawProvId);
+    final payload = _sanitizeMenuForDb(menuData, resolvedProviderId: realProviderId);
     final response = await client
         .from('menus')
-        .insert(menuData)
+        .insert(payload)
         .select()
         .single();
-    return response;
+    return _normalizeMenuFromDb(response);
   }
 
   // Update Existing Menu
   Future<Map<String, dynamic>> updateMenu(String menuId, Map<String, dynamic> menuData) async {
+    final payload = _sanitizeMenuForDb(menuData);
     final response = await client
         .from('menus')
-        .update(menuData)
+        .update(payload)
         .eq('id', menuId)
         .select()
         .single();
-    return response;
+    return _normalizeMenuFromDb(response);
   }
 
   // Toggle Menu Active Status
@@ -156,6 +383,11 @@ class SupabaseService {
         .eq('id', menuId);
   }
 
+  // Helper to check if a string is a valid UUID
+  static final RegExp _uuidRegExp = RegExp(
+    r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$',
+  );
+
   // Create Booking
   Future<Map<String, dynamic>> createBooking({
     required String providerId,
@@ -171,23 +403,65 @@ class SupabaseService {
     required String eventAddress,
     double? eventLat,
     double? eventLng,
+    bool isHourly = false,
+    int hoursCount = 3,
+    double? unitPrice,
+    bool ingredientsIncluded = true,
+    String? notes,
+    String? addonBartenderId,
+    String? addonMenuId,
+    double addonPrice = 0.0,
   }) async {
     final userId = currentUser?.id;
     if (userId == null) throw Exception('Kullanıcı oturumu bulunamadı.');
 
+    // Ensure menuId is a valid UUID referencing menus(id)
+    String resolvedMenuId = menuId;
+    if (!_uuidRegExp.hasMatch(resolvedMenuId)) {
+      final existingMenus = await getProviderMenus(providerId);
+      if (existingMenus.isNotEmpty) {
+        resolvedMenuId = existingMenus.first['id'] as String;
+      } else {
+        final createdDefaultMenu = await createMenu({
+          'provider_id': providerId,
+          'title': isHourly ? 'Saatlik Özel Şef / Barmen Hizmeti' : 'Özel Tadım Menüsü',
+          'description': 'Standart rezervasyon paketi',
+          'category': 'Fine Dining',
+          'pricing_type': isHourly ? 'hourly' : 'per_person',
+          'price_per_person': unitPrice ?? (totalPrice / (guestCount > 0 ? guestCount : 1)),
+          'min_guests': 1,
+          'max_guests': 50,
+          'ingredients_included': ingredientsIncluded,
+          'courses': const [],
+        });
+        resolvedMenuId = createdDefaultMenu['id'] as String;
+      }
+    }
+
     final response = await client.from('bookings').insert({
       'customer_id': userId,
       'provider_id': providerId,
-      'menu_id': menuId,
+      'menu_id': resolvedMenuId,
       'event_date': eventDate.toIso8601String().split('T')[0],
       'event_time': eventTime,
       'guest_count': guestCount,
+      'is_hourly': isHourly,
+      'hours_count': hoursCount,
+      'unit_price': unitPrice ?? (totalPrice / (guestCount > 0 ? guestCount : 1)),
       'total_price': totalPrice,
+      'commission_rate': 0.10,
       'platform_fee': platformFee,
       'provider_earnings': providerEarnings,
+      'ingredients_included': ingredientsIncluded,
       'kitchen_details': kitchenDetails,
       'allergies': allergies,
       'event_address': eventAddress,
+      if (notes != null && notes.isNotEmpty) 'notes': notes,
+      if (addonBartenderId != null && _uuidRegExp.hasMatch(addonBartenderId))
+        'addon_bartender_id': addonBartenderId,
+      if (addonMenuId != null && _uuidRegExp.hasMatch(addonMenuId))
+        'addon_menu_id': addonMenuId,
+      if (addonPrice > 0) 'addon_price': addonPrice,
       if (eventLat != null && eventLng != null)
         'event_location': 'POINT($eventLng $eventLat)',
     }).select().single();
@@ -195,21 +469,106 @@ class SupabaseService {
     return response;
   }
 
+  // Fetch Customer's Bookings
+  Future<List<Map<String, dynamic>>> getUserBookings() async {
+    final userId = currentUser?.id;
+    if (userId == null) return [];
+    final response = await client
+        .from('bookings')
+        .select('*, provider:provider_profiles(*, profiles(*)), menu:menus(*), review:reviews(*)')
+        .eq('customer_id', userId)
+        .order('created_at', ascending: false);
+    return List<Map<String, dynamic>>.from(response);
+  }
+
+  // Submit Review for a Completed Booking
+  Future<Map<String, dynamic>> submitReview({
+    required String bookingId,
+    required String providerId,
+    required int ratingFood,
+    required int ratingHygiene,
+    required int ratingPresentation,
+    String? comment,
+    List<String> photos = const [],
+  }) async {
+    final userId = currentUser?.id;
+    if (userId == null) throw Exception('Kullanıcı oturumu bulunamadı.');
+
+    final response = await client.from('reviews').upsert({
+      'booking_id': bookingId,
+      'customer_id': userId,
+      'provider_id': providerId,
+      'rating_food': ratingFood,
+      'rating_hygiene': ratingHygiene,
+      'rating_presentation': ratingPresentation,
+      'comment': comment,
+      'photos': photos,
+      'updated_at': DateTime.now().toIso8601String(),
+    }, onConflict: 'booking_id').select().single();
+
+    return response;
+  }
+
+  // Fetch Reviews for a Provider
+  Future<List<Map<String, dynamic>>> getProviderReviews(String providerId) async {
+    final response = await client
+        .from('reviews')
+        .select('*, customer:profiles(full_name, avatar_url)')
+        .eq('provider_id', providerId)
+        .order('created_at', ascending: false);
+    return List<Map<String, dynamic>>.from(response);
+  }
+
+  // Resolve booking UUID safely from either UUID or GH-XXXXX booking_code
+  Future<String?> resolveBookingUuid(String identifier) async {
+    final trimmed = identifier.trim();
+    if (trimmed.isEmpty) return null;
+    if (_uuidRegExp.hasMatch(trimmed)) return trimmed;
+    try {
+      final row = await client
+          .from('bookings')
+          .select('id')
+          .eq('booking_code', trimmed)
+          .maybeSingle();
+      if (row != null && row['id'] != null) {
+        return row['id'].toString();
+      }
+    } catch (_) {}
+    return null;
+  }
+
   // Fetch Booking Details & Live Status Tracker
   Future<Map<String, dynamic>?> getBookingDetails(String bookingId) async {
+    final resolvedId = await resolveBookingUuid(bookingId);
+    if (resolvedId == null) return null;
     return await client
         .from('bookings')
         .select('*, provider:provider_profiles(*, profiles(*)), menu:menus(*)')
-        .eq('id', bookingId)
+        .eq('id', resolvedId)
         .maybeSingle();
   }
 
-  // Update Booking Status (For Chefs/Providers)
+  // Update Booking Status (For Chefs/Providers & Customers)
   Future<void> updateBookingStatus(String bookingId, String status) async {
-    await client
-        .from('bookings')
-        .update({'status': status})
-        .eq('id', bookingId);
+    final normalizedStatus = status == 'confirmed' ? 'accepted' : status;
+    try {
+      await client.rpc(
+        'update_booking_status_safe',
+        params: {
+          'p_booking_identifier': bookingId,
+          'p_new_status': normalizedStatus,
+        },
+      );
+      return;
+    } catch (_) {}
+
+    final resolvedId = await resolveBookingUuid(bookingId);
+    if (resolvedId != null) {
+      await client
+          .from('bookings')
+          .update({'status': normalizedStatus, 'updated_at': DateTime.now().toIso8601String()})
+          .eq('id', resolvedId);
+    }
   }
 
   // Realtime Booking Status Stream (Customer Tracker)
@@ -442,22 +801,45 @@ class SupabaseService {
 
   // --- Escrow & Wallet Operations ---
 
-  // Process Escrow Payment for Booking (10% Commission)
+  // Process Escrow Payment for Booking (%10 Commission / %90 Provider Payout per PRD)
   Future<Map<String, dynamic>> processEscrowPayment({
     required String bookingId,
     required double amount,
     String gateway = 'iyzico',
+    double commissionRate = 0.10,
   }) async {
+    final resolvedId = await resolveBookingUuid(bookingId) ?? bookingId;
     final dynamic response = await client.rpc(
       'process_escrow_payment',
       params: {
-        'p_booking_id': bookingId,
+        'p_booking_id': resolvedId,
         'p_amount': amount,
         'p_gateway': gateway,
-        'p_commission_rate': 0.10, // 10% platform commission
+        'p_commission_rate': commissionRate,
       },
     );
     return Map<String, dynamic>.from(response as Map);
+  }
+
+  // Fetch Provider Bookings (for Chef / Bartender Dashboard)
+  Future<List<Map<String, dynamic>>> getProviderBookings(String providerId) async {
+    final response = await client
+        .from('bookings')
+        .select('*, customer:profiles!customer_id(full_name, phone, avatar_url), menu:menus!menu_id(title, category)')
+        .eq('provider_id', providerId)
+        .order('event_date', ascending: true);
+    return List<Map<String, dynamic>>.from(response);
+  }
+
+  // Update Provider Live Availability Toggle (is_available_now)
+  Future<void> updateProviderAvailabilityToggle(String providerId, bool isAvailableNow) async {
+    await client
+        .from('provider_profiles')
+        .update({
+          'is_available_now': isAvailableNow,
+          'updated_at': DateTime.now().toIso8601String(),
+        })
+        .eq('id', providerId);
   }
 
   // Save iyzico Sub-Merchant & IBAN Info for Provider
@@ -487,10 +869,11 @@ class SupabaseService {
 
   // Release Escrow Payout (Transfer %90 Earnings to Chef Wallet)
   Future<Map<String, dynamic>> releaseEscrowPayout(String bookingId) async {
+    final resolvedId = await resolveBookingUuid(bookingId) ?? bookingId;
     try {
       final dynamic response = await client.rpc(
         'release_escrow_payout',
-        params: {'p_booking_id': bookingId},
+        params: {'p_booking_id': resolvedId},
       );
       if (response != null) {
         return Map<String, dynamic>.from(response as Map);
@@ -504,7 +887,7 @@ class SupabaseService {
           'escrow_status': 'released',
           'released_at': DateTime.now().toIso8601String(),
         })
-        .eq('booking_id', bookingId)
+        .eq('booking_id', resolvedId)
         .select()
         .single();
     return response;
@@ -515,11 +898,12 @@ class SupabaseService {
     required String bookingId,
     String reason = 'Rezervasyon iptal edildi.',
   }) async {
+    final resolvedId = await resolveBookingUuid(bookingId) ?? bookingId;
     try {
       final dynamic response = await client.rpc(
         'refund_escrow_payment',
         params: {
-          'p_booking_id': bookingId,
+          'p_booking_id': resolvedId,
           'p_reason': reason,
         },
       );
@@ -535,7 +919,7 @@ class SupabaseService {
           'refunded_at': DateTime.now().toIso8601String(),
           'cancel_reason': reason,
         })
-        .eq('booking_id', bookingId)
+        .eq('booking_id', resolvedId)
         .select()
         .single();
     return response;
@@ -551,6 +935,3 @@ class SupabaseService {
     return response;
   }
 }
-
-
-

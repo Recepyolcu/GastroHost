@@ -170,11 +170,26 @@ class ProviderOnboardingController extends StateNotifier<ProviderOnboardingState
       final user = supabase.currentUser;
       if (user == null) return;
 
+      final userRow = await supabase.client
+          .from('profiles')
+          .select()
+          .eq('id', user.id)
+          .maybeSingle();
+
       final profile = await supabase.client
           .from('provider_profiles')
           .select()
           .eq('user_id', user.id)
           .maybeSingle();
+
+      if (userRow != null) {
+        state = state.copyWith(
+          firstName: userRow['first_name']?.toString() ?? state.firstName,
+          lastName: userRow['last_name']?.toString() ?? state.lastName,
+          phone: userRow['phone']?.toString() ?? state.phone,
+          avatarUrl: userRow['avatar_url']?.toString() ?? state.avatarUrl,
+        );
+      }
 
       if (profile != null) {
         final status = profile['onboarding_status'] ?? 'draft';
@@ -239,6 +254,7 @@ class ProviderOnboardingController extends StateNotifier<ProviderOnboardingState
         'education': state.education,
         'service_radius_km': state.serviceRadiusKm.toInt(),
         'onboarding_status': currentStatus,
+        'current_step': state.currentStep,
         'specialties': {
           'cuisines': state.cuisineTypes,
           'dietary': state.dietarySpecialties,
@@ -351,7 +367,7 @@ class ProviderOnboardingController extends StateNotifier<ProviderOnboardingState
         if (state.criminalRecordDocUrl.isNotEmpty) {
           await supabase.addProviderDocument(
             providerId: providerId,
-            documentType: 'identity', // criminal record stored as document
+            documentType: 'criminal_record',
             fileUrl: state.criminalRecordDocUrl,
           );
         }

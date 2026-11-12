@@ -95,29 +95,55 @@ class UserLocationNotifier extends StateNotifier<UserProfile> {
       if (user != null) {
         final email = user.email ?? 'ahmet.yilmaz@example.com';
         final meta = user.userMetadata ?? {};
-        final name = meta['full_name'] as String? ?? 'Ahmet Yılmaz';
-        final role = meta['role'] as String? ?? 'customer';
+        String resolvedName = meta['full_name'] as String? ?? 'Ahmet Yılmaz';
+        String resolvedRole = meta['role'] as String? ?? 'customer';
+        String resolvedLocation = state.location;
+
+        try {
+          final profileRow = await supabaseService.client
+              .from('profiles')
+              .select('full_name, first_name, last_name, role, default_address')
+              .eq('id', user.id)
+              .maybeSingle();
+          if (profileRow != null) {
+            final dbFullName = profileRow['full_name']?.toString() ?? '';
+            final dbFirstLast = '${profileRow['first_name'] ?? ''} ${profileRow['last_name'] ?? ''}'.trim();
+            if (dbFullName.isNotEmpty) {
+              resolvedName = dbFullName;
+            } else if (dbFirstLast.isNotEmpty) {
+              resolvedName = dbFirstLast;
+            }
+            if (profileRow['role'] != null) {
+              resolvedRole = profileRow['role'].toString();
+            }
+            final addr = profileRow['default_address']?.toString() ?? '';
+            if (addr.isNotEmpty) {
+              resolvedLocation = addr;
+            }
+          }
+        } catch (_) {}
 
         // Check verification status from provider_profiles
         bool isVerified = false;
-        if (role == 'chef' || role == 'bartender' || role == 'admin') {
+        if (resolvedRole == 'chef' || resolvedRole == 'bartender' || resolvedRole == 'admin') {
           try {
             final response = await supabaseService.client
                 .from('provider_profiles')
-                .select('is_verified')
+                .select('is_verified, onboarding_status')
                 .eq('user_id', user.id)
                 .maybeSingle();
             if (response != null) {
-              isVerified = response['is_verified'] as bool? ?? false;
+              isVerified = (response['is_verified'] as bool? ?? false) ||
+                  response['onboarding_status'] == 'approved';
             }
           } catch (_) {}
         }
 
         state = UserProfile.defaultUser(
-          name: name,
+          name: resolvedName,
           email: email,
-          role: role,
-          location: state.location,
+          role: resolvedRole,
+          location: resolvedLocation,
           latitude: state.latitude,
           longitude: state.longitude,
           isVerifiedChef: isVerified,
@@ -129,7 +155,6 @@ class UserLocationNotifier extends StateNotifier<UserProfile> {
   Future<void> refreshDeviceLocation() async {
     await requestDeviceLocationPermission();
   }
-
 
   /// Triggers Native Android/iOS Location Permission dialog and fetches live GPS coordinates
   Future<String> requestDeviceLocationPermission() async {
@@ -201,4 +226,3 @@ class UserLocationNotifier extends StateNotifier<UserProfile> {
 final userProfileProvider = StateNotifierProvider<UserLocationNotifier, UserProfile>((ref) {
   return UserLocationNotifier();
 });
-

@@ -200,7 +200,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 ),
                 const SizedBox(height: 32),
 
-                // Customer / Chef Role Tabs
+                // Customer / Chef / Mixologist Role Tabs
                 Row(
                   children: [
                     Expanded(
@@ -220,9 +220,9 @@ class _LoginScreenState extends State<LoginScreen> {
                           ),
                           child: Center(
                             child: Text(
-                              'Customer',
+                              'Müşteri',
                               style: GoogleFonts.manrope(
-                                fontSize: 15,
+                                fontSize: 14,
                                 fontWeight: _selectedRole == 'customer' ? FontWeight.bold : FontWeight.normal,
                                 color: _selectedRole == 'customer' ? const Color(0xFF1B1C1C) : const Color(0xFF747878),
                               ),
@@ -248,11 +248,39 @@ class _LoginScreenState extends State<LoginScreen> {
                           ),
                           child: Center(
                             child: Text(
-                              'Chef',
+                              'Özel Şef',
                               style: GoogleFonts.manrope(
-                                fontSize: 15,
+                                fontSize: 14,
                                 fontWeight: _selectedRole == 'chef' ? FontWeight.bold : FontWeight.normal,
                                 color: _selectedRole == 'chef' ? const Color(0xFF1B1C1C) : const Color(0xFF747878),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                    Expanded(
+                      child: InkWell(
+                        onTap: () => setState(() => _selectedRole = 'bartender'),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          decoration: BoxDecoration(
+                            border: Border(
+                              bottom: BorderSide(
+                                color: _selectedRole == 'bartender'
+                                    ? const Color(0xFF9333EA)
+                                    : Colors.transparent,
+                                width: 2,
+                              ),
+                            ),
+                          ),
+                          child: Center(
+                            child: Text(
+                              'Miksolojist',
+                              style: GoogleFonts.manrope(
+                                fontSize: 14,
+                                fontWeight: _selectedRole == 'bartender' ? FontWeight.bold : FontWeight.normal,
+                                color: _selectedRole == 'bartender' ? const Color(0xFF9333EA) : const Color(0xFF747878),
                               ),
                             ),
                           ),
@@ -385,18 +413,42 @@ class _LoginScreenState extends State<LoginScreen> {
                             ),
                           ),
 
-                          // Instant Demo Mode Bypass Button
+                          // Instant Demo Mode Bypass Buttons
+                          const Divider(height: 24),
                           Center(
-                            child: TextButton(
-                              onPressed: () => widget.onLoginSuccess(_selectedRole),
-                              child: Text(
-                                'Direct Offline Demo Access →',
-                                style: GoogleFonts.manrope(
-                                  fontSize: 12,
-                                  color: const Color(0xFF747878),
-                                ),
+                            child: Text(
+                              'HIZLI DEMO GİRİŞİ (TEK TIK)',
+                              style: GoogleFonts.manrope(
+                                fontSize: 10,
+                                fontWeight: FontWeight.w800,
+                                color: const Color(0xFF747878),
+                                letterSpacing: 0.6,
                               ),
                             ),
+                          ),
+                          const SizedBox(height: 10),
+                          Wrap(
+                            spacing: 8,
+                            runSpacing: 8,
+                            alignment: WrapAlignment.center,
+                            children: [
+                              OutlinedButton(
+                                onPressed: () => widget.onLoginSuccess('customer'),
+                                child: Text('Müşteri', style: GoogleFonts.manrope(fontSize: 12, fontWeight: FontWeight.bold)),
+                              ),
+                              OutlinedButton(
+                                onPressed: () => widget.onLoginSuccess('chef'),
+                                child: Text('Özel Şef', style: GoogleFonts.manrope(fontSize: 12, fontWeight: FontWeight.bold)),
+                              ),
+                              OutlinedButton(
+                                onPressed: () => widget.onLoginSuccess('bartender'),
+                                child: Text('Miksolojist', style: GoogleFonts.manrope(fontSize: 12, fontWeight: FontWeight.bold, color: const Color(0xFF9333EA))),
+                              ),
+                              OutlinedButton(
+                                onPressed: () => widget.onLoginSuccess('admin'),
+                                child: Text('Admin', style: GoogleFonts.manrope(fontSize: 12, fontWeight: FontWeight.bold, color: const Color(0xFF059669))),
+                              ),
+                            ],
                           ),
                         ],
                       ),

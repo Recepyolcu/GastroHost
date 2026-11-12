@@ -2,6 +2,7 @@ import * as React from "react"
 import { Header } from "@/components/home/Header"
 import { CategoryScroll } from "@/components/home/CategoryScroll"
 import { HeroBanner } from "@/components/home/HeroBanner"
+import { GeoDiscoveryExplorer } from "@/components/home/GeoDiscoveryExplorer"
 import { RecommendedChefs } from "@/components/home/RecommendedChefs"
 import { TopMixologists } from "@/components/home/TopMixologists"
 import { MobileBottomNav } from "@/components/home/MobileBottomNav"
@@ -19,6 +20,9 @@ export default function HomePage() {
 
         {/* Hero Section */}
         <HeroBanner />
+
+        {/* PRD 3.2 PostGIS Geo-Discovery, Interactive Map & Advanced Filtering */}
+        <GeoDiscoveryExplorer />
 
         {/* Recommended Chefs */}
         <RecommendedChefs />

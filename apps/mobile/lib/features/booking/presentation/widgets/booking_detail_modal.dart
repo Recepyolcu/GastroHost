@@ -53,7 +53,8 @@ class _BookingDetailModalState extends State<BookingDetailModal> {
 
     try {
       final supabase = SupabaseService();
-      final bookingId = widget.booking['id']?.toString();
+      final bookingId =
+          (widget.booking['db_id'] ?? widget.booking['id'])?.toString();
       if (bookingId != null && !bookingId.startsWith('b_')) {
         await supabase.updateBookingStatus(bookingId, newStatus);
       }

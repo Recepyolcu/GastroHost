@@ -1,0 +1,16 @@
+-- ============================================================================
+-- GASTROHOST (getir_chef) - SEED DATA (Synced with Live Supabase DB)
+-- Applied via migration: 20261104204112_seed_complete_mvp_test_data
+-- ============================================================================
+-- Includes:
+-- - 9 Profiles (2 Customers, 4 Chefs, 2 Bartenders, 1 Admin)
+-- - 6 Provider Profiles with PostGIS Geography locations across Istanbul
+-- - 7 Active Menus & Cocktail Packages with courses & procurement items
+-- - 42 Weekly Provider Availability slots
+-- - 10 KYC & Certification Documents (Approved + Pending for Admin Simulator)
+-- - 5 Bookings (on_the_way, in_kitchen, pending, completed)
+-- - 5 Payments & 4 Wallet Transactions
+-- - 5 Live Chat Messages
+-- - 2 Multi-dimensional Reviews
+-- - 3 In-app Notifications
+

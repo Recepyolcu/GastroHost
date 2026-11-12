@@ -46,7 +46,7 @@ GastroHost; ev sahipleri ile profesyonel özel şefleri ve miksolojistleri (barm
 3. **Yönetici (Admin):**  
      
    * Şef/Barmen başvuru onayları (Zorunlu Kimlik ve Adli Sicil doğrulaması; İsteğe bağlı Hijyen Eğitimi Belgesi ve Gastronomi Diploması doğrulaması ile profil rozeti verme).  
-   * Pazar yeri komisyon oranları yönetimi (%10 \- %20).  
+   * Pazar yeri komisyon oranları yönetimi (Varsayılan %10).  
    * Uyuşmazlık, iade ve iptal yönetimi.
 
 ---
@@ -100,8 +100,8 @@ Rezervasyon durumları (Booking Lifecycle): `PENDING` \-\> `ACCEPTED` \-\> `SHOP
 
 * Rezervasyon anında müşterinin kartından tutar tahsil edilir ve platform havuzunda bloke edilir.  
 * Hizmet tamamlanıp müşteri onay verdiğinde (veya etkinlik bitişinden 12 saat sonra otomatik olarak):  
-  * Platform Komisyonu (%15) kesilir.  
-  * Kalan bakiye (%85) sağlayıcının cüzdanına / IBAN'ına aktarılır.
+  * Platform Komisyonu (%10) kesilir.  
+  * Kalan bakiye (%90) sağlayıcının cüzdanına / IBAN'ına aktarılır.
 
 ---
 

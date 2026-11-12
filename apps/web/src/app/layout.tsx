@@ -1,22 +1,14 @@
 import type { Metadata } from "next";
-import { Manrope, Libre_Caslon_Text } from "next/font/google";
+import "@fontsource-variable/dm-sans";
+import "@fontsource-variable/lora";
+import "@fontsource-variable/cormorant-garamond";
+import { AuthProvider } from "@/lib/auth-context";
 import "./globals.css";
-
-const manrope = Manrope({
-  variable: "--font-manrope",
-  subsets: ["latin"],
-  weight: ["400", "600", "700"],
-});
-
-const libreCaslon = Libre_Caslon_Text({
-  variable: "--font-caslon",
-  subsets: ["latin"],
-  weight: ["400", "700"],
-});
 
 export const metadata: Metadata = {
   title: "GastroHost | Evde Özel Şef & Barmen Pazar Yeri",
-  description: "Evde özel yemek deneyimleri, profesyonel şefler ve miksolojistler için pazar yeri platformu.",
+  description:
+    "Evde özel yemek deneyimleri, profesyonel şefler ve miksolojistler için güvenli Escrow ödeme garantili pazar yeri platformu.",
 };
 
 export default function RootLayout({
@@ -25,12 +17,9 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html
-      lang="tr"
-      className={`${manrope.variable} ${libreCaslon.variable} h-full antialiased`}
-    >
+    <html lang="tr" className="h-full antialiased">
       <body className="min-h-full flex flex-col bg-background text-foreground font-sans">
-        {children}
+        <AuthProvider>{children}</AuthProvider>
       </body>
     </html>
   );

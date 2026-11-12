@@ -5,6 +5,7 @@ import 'core/theme/app_theme.dart';
 import 'features/auth/presentation/login_screen.dart';
 import 'features/discovery/presentation/home_discovery_screen.dart';
 import 'features/discovery/presentation/provider_detail_screen.dart';
+import 'features/discovery/presentation/chef_profile_screen.dart';
 import 'features/booking/presentation/booking_wizard_screen.dart';
 import 'features/booking/presentation/booking_status_tracker_screen.dart';
 import 'features/provider/presentation/provider_dashboard_screen.dart';
@@ -15,6 +16,7 @@ import 'features/chat/presentation/chat_screen.dart';
 import 'features/profile/presentation/profile_screen.dart';
 import 'features/settings/presentation/settings_screen.dart';
 import 'core/providers/app_settings_provider.dart';
+import 'core/providers/booking_provider.dart';
 
 import 'core/services/supabase_service.dart';
 
@@ -43,11 +45,24 @@ class _GastroHostAppState extends ConsumerState<GastroHostApp> {
   Map<String, dynamic>? _selectedMenu;
   String? _activeBookingId;
 
+  // Chef Profile Navigation State
+  Map<String, dynamic>? _selectedProfileProvider;
+  String _profileBackScreen = 'home';
+  DateTime? _wizardSelectedDate;
+
   // Chat Parameters
   String _chatBookingId = '';
   String _chatRecipientName = '';
   String _chatRecipientRole = 'chef';
   String _chatBackScreen = 'tracker';
+
+  void _openChefProfile(Map<String, dynamic> provider, {String? backScreen}) {
+    setState(() {
+      _selectedProfileProvider = provider;
+      _profileBackScreen = backScreen ?? _currentScreen;
+      _currentScreen = 'chef_profile';
+    });
+  }
 
   @override
   void initState() {
@@ -68,7 +83,7 @@ class _GastroHostAppState extends ConsumerState<GastroHostApp> {
       final user = supabaseService.currentUser;
       if (user != null) {
         final role = user.userMetadata?['role'] ?? 'customer';
-        if (role == 'chef') {
+        if (role == 'chef' || role == 'bartender') {
           final profile = await supabaseService.client
               .from('provider_profiles')
               .select('onboarding_status')
@@ -81,6 +96,8 @@ class _GastroHostAppState extends ConsumerState<GastroHostApp> {
           } else {
             setState(() => _currentScreen = 'provider_onboarding');
           }
+        } else if (role == 'admin') {
+          setState(() => _currentScreen = 'admin_approval_simulator');
         } else {
           setState(() => _currentScreen = 'home');
         }
@@ -138,7 +155,6 @@ class _GastroHostAppState extends ConsumerState<GastroHostApp> {
     final selectedIndex = _getNavIndex();
 
     return Container(
-      height: 64,
       decoration: BoxDecoration(
         color: isDark ? const Color(0xFF1A1D22) : Colors.white,
         border: Border(
@@ -147,14 +163,19 @@ class _GastroHostAppState extends ConsumerState<GastroHostApp> {
           ),
         ),
       ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceAround,
-        children: [
-          _buildNavItem(0, Icons.explore_rounded, 'Explore', selectedIndex, isDark),
-          _buildNavItem(1, Icons.calendar_today_outlined, 'Bookings', selectedIndex, isDark),
-          _buildNavItem(2, Icons.chat_bubble_outline_rounded, 'Messages', selectedIndex, isDark),
-          _buildNavItem(3, Icons.person_outline_rounded, 'Profile', selectedIndex, isDark),
-        ],
+      child: SafeArea(
+        top: false,
+        child: SizedBox(
+          height: 58,
+          child: Row(
+            children: [
+              _buildNavItem(0, Icons.explore_rounded, 'Explore', selectedIndex, isDark),
+              _buildNavItem(1, Icons.calendar_today_outlined, 'Bookings', selectedIndex, isDark),
+              _buildNavItem(2, Icons.chat_bubble_outline_rounded, 'Messages', selectedIndex, isDark),
+              _buildNavItem(3, Icons.person_outline_rounded, 'Profile', selectedIndex, isDark),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -164,43 +185,45 @@ class _GastroHostAppState extends ConsumerState<GastroHostApp> {
     final selectedColor = isDark ? const Color(0xFFFDC34D) : Colors.black;
     final unselectedColor = isDark ? const Color(0xFF94A3B8) : const Color(0xFF747878);
 
-    return InkWell(
-      onTap: () {
-        setState(() {
-          switch (index) {
-            case 0:
-              _currentScreen = 'home';
-              break;
-            case 1:
-              _currentScreen = 'tracker';
-              break;
-            case 2:
-              _currentScreen = 'chat';
-              break;
-            case 3:
-              _currentScreen = 'profile';
-              break;
-          }
-        });
-      },
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(
-            icon,
-            size: 22,
-            color: isSelected ? selectedColor : unselectedColor,
-          ),
-          const SizedBox(height: 2),
-          Text(
-            label,
-            style: GoogleFonts.manrope(
-              fontSize: 11,
-              fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+    return Expanded(
+      child: InkWell(
+        onTap: () {
+          setState(() {
+            switch (index) {
+              case 0:
+                _currentScreen = 'home';
+                break;
+              case 1:
+                _currentScreen = 'tracker';
+                break;
+              case 2:
+                _currentScreen = 'chat';
+                break;
+              case 3:
+                _currentScreen = 'profile';
+                break;
+            }
+          });
+        },
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              icon,
+              size: 22,
               color: isSelected ? selectedColor : unselectedColor,
             ),
-          ),
-        ],
+            const SizedBox(height: 3),
+            Text(
+              label,
+              style: GoogleFonts.manrope(
+                fontSize: 11,
+                fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                color: isSelected ? selectedColor : unselectedColor,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -210,7 +233,7 @@ class _GastroHostAppState extends ConsumerState<GastroHostApp> {
       case 'login':
         return LoginScreen(
           onLoginSuccess: (role, {bool isSignUp = false}) async {
-            if (role == 'chef') {
+            if (role == 'chef' || role == 'bartender') {
               if (isSignUp) {
                 // New registration -> MUST complete 8-step onboarding wizard first!
                 setState(() {
@@ -240,6 +263,8 @@ class _GastroHostAppState extends ConsumerState<GastroHostApp> {
                   setState(() => _currentScreen = 'provider_dashboard');
                 }
               }
+            } else if (role == 'admin') {
+              setState(() => _currentScreen = 'admin_approval_simulator');
             } else {
               setState(() => _currentScreen = 'home');
             }
@@ -253,6 +278,9 @@ class _GastroHostAppState extends ConsumerState<GastroHostApp> {
               _selectedMenu = menu;
               _currentScreen = 'detail';
             });
+          },
+          onTapChefProfile: (provider) {
+            _openChefProfile(provider, backScreen: 'home');
           },
           onTapProfile: () {
             setState(() {
@@ -277,6 +305,7 @@ class _GastroHostAppState extends ConsumerState<GastroHostApp> {
             onTapProfile: () {
               setState(() => _currentScreen = 'profile');
             },
+            onTapChefProfile: (p) => _openChefProfile(p, backScreen: 'home'),
           );
         }
         return ProviderDetailScreen(
@@ -287,6 +316,55 @@ class _GastroHostAppState extends ConsumerState<GastroHostApp> {
           onBack: () {
             setState(() => _currentScreen = 'home');
           },
+          onOpenChefProfile: (provider) {
+            _openChefProfile(provider, backScreen: 'detail');
+          },
+        );
+      case 'chef_profile':
+        final prov = _selectedProfileProvider ?? _selectedProvider ?? {
+          'id': 'p1',
+          'name': 'Chef Julian',
+          'role': 'Executive Chef',
+          'rating': '4.9',
+          'image': 'https://images.unsplash.com/photo-1577219491135-ce391730fb2c?w=800&auto=format&fit=crop&q=80',
+          'provider_type': 'chef',
+        };
+        return ChefProfileScreen(
+          provider: prov,
+          onBack: () {
+            setState(() => _currentScreen = _profileBackScreen);
+          },
+          onStartBooking: () {
+            setState(() {
+              _selectedProvider = prov;
+              _selectedMenu = {
+                'id': 'm_${prov['id'] ?? 'default'}',
+                'title': '${prov['name'] ?? 'Şef'} İmza Deneyimi',
+              };
+              _wizardSelectedDate = null;
+              _currentScreen = 'wizard';
+            });
+          },
+          onStartBookingWithDate: (selectedDate) {
+            setState(() {
+              _selectedProvider = prov;
+              _selectedMenu = {
+                'id': 'm_${prov['id'] ?? 'default'}',
+                'title': '${prov['name'] ?? 'Şef'} İmza Deneyimi',
+              };
+              _wizardSelectedDate = selectedDate;
+              _currentScreen = 'wizard';
+            });
+          },
+          onOpenChat: () {
+            setState(() {
+              _chatBookingId = _activeBookingId ?? 'GH-94821';
+              _chatRecipientName = prov['name'] ?? 'Chef Julian';
+              _chatRecipientRole = prov['role'] ?? 'Executive Chef';
+              _chatBackScreen = 'chef_profile';
+              _currentScreen = 'chat';
+            });
+          },
         );
       case 'wizard':
         if (_selectedProvider == null || _selectedMenu == null) {
@@ -295,11 +373,13 @@ class _GastroHostAppState extends ConsumerState<GastroHostApp> {
             onTapProfile: () {
               setState(() => _currentScreen = 'profile');
             },
+            onTapChefProfile: (p) => _openChefProfile(p, backScreen: 'home'),
           );
         }
         return BookingWizardScreen(
           provider: _selectedProvider!,
           menu: _selectedMenu!,
+          initialDate: _wizardSelectedDate,
           onBookingComplete: (bookingId) {
             setState(() {
               _activeBookingId = bookingId;
@@ -311,6 +391,14 @@ class _GastroHostAppState extends ConsumerState<GastroHostApp> {
           },
         );
       case 'tracker':
+        final bookingState = ref.watch(bookingProvider);
+        final activeBooking = _activeBookingId != null
+            ? bookingState.bookings.firstWhere(
+                (b) => b.id == _activeBookingId,
+                orElse: () => bookingState.activeBooking ?? bookingState.bookings.first,
+              )
+            : bookingState.activeBooking;
+
         return BookingStatusTrackerScreen(
           bookingId: _activeBookingId,
           onBackToHome: () {
@@ -318,12 +406,15 @@ class _GastroHostAppState extends ConsumerState<GastroHostApp> {
           },
           onOpenChat: () {
             setState(() {
-              _chatBookingId = _activeBookingId ?? 'demo_booking_123';
-              _chatRecipientName = _selectedProvider?['name'] ?? 'Şef Marco';
-              _chatRecipientRole = 'chef';
+              _chatBookingId = _activeBookingId ?? activeBooking?.id ?? 'GH-94821';
+              _chatRecipientName = activeBooking?.providerName ?? _selectedProvider?['name'] ?? 'Chef Julian';
+              _chatRecipientRole = (activeBooking?.isHourly ?? false) ? 'bartender' : 'chef';
               _chatBackScreen = 'tracker';
               _currentScreen = 'chat';
             });
+          },
+          onOpenChefProfile: (provider) {
+            _openChefProfile(provider, backScreen: 'tracker');
           },
         );
       case 'provider_dashboard':
@@ -349,14 +440,31 @@ class _GastroHostAppState extends ConsumerState<GastroHostApp> {
           },
         );
       case 'chat':
+        final bookingState = ref.watch(bookingProvider);
+        final activeBooking = _activeBookingId != null
+            ? bookingState.bookings.firstWhere(
+                (b) => b.id == _activeBookingId,
+                orElse: () => bookingState.activeBooking ?? bookingState.bookings.first,
+              )
+            : bookingState.activeBooking;
+
         return ChatScreen(
-          bookingId: _chatBookingId,
-          recipientName: _chatRecipientName,
-          recipientRole: _chatRecipientRole,
+          bookingId: _chatBookingId.isNotEmpty
+              ? _chatBookingId
+              : (activeBooking?.id ?? 'GH-94821'),
+          recipientName: _chatRecipientName.isNotEmpty
+              ? _chatRecipientName
+              : (activeBooking?.providerName ?? 'Chef Julian'),
+          recipientRole: _chatRecipientRole.isNotEmpty
+              ? _chatRecipientRole
+              : (activeBooking?.providerRole ?? 'Executive Chef'),
           onBack: () {
             setState(() {
               _currentScreen = _chatBackScreen;
             });
+          },
+          onOpenChefProfile: (provider) {
+            _openChefProfile(provider, backScreen: 'chat');
           },
         );
       case 'provider_onboarding':

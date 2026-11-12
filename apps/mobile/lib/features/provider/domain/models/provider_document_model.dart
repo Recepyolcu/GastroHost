@@ -1,5 +1,6 @@
 enum DocumentType {
   identity,
+  criminalRecord,
   hygieneCert,
   diploma,
   portfolio,
@@ -9,6 +10,8 @@ enum DocumentType {
     switch (this) {
       case DocumentType.identity:
         return 'identity';
+      case DocumentType.criminalRecord:
+        return 'criminal_record';
       case DocumentType.hygieneCert:
         return 'hygiene_cert';
       case DocumentType.diploma:
@@ -24,6 +27,8 @@ enum DocumentType {
     switch (val) {
       case 'identity':
         return DocumentType.identity;
+      case 'criminal_record':
+        return DocumentType.criminalRecord;
       case 'hygiene_cert':
         return DocumentType.hygieneCert;
       case 'diploma':

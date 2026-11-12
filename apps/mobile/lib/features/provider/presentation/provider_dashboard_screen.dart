@@ -74,6 +74,16 @@ class _ProviderDashboardScreenState extends State<ProviderDashboardScreen> {
 
 
   String _onboardingStatus = 'pending_approval';
+  String? _providerId;
+  bool _hasLiveSupabaseBookings = false;
+  double _walletBalance = 14850.0;
+  double _pendingEscrow = 9520.0;
+  int _completedEventsCount = 18;
+  Map<String, dynamic> _verificationBadges = const {
+    'identity': true,
+    'hygiene_cert': true,
+    'diploma': true,
+  };
 
   @override
   void initState() {
@@ -86,23 +96,73 @@ class _ProviderDashboardScreenState extends State<ProviderDashboardScreen> {
     try {
       final supabase = SupabaseService();
       final user = supabase.currentUser;
+      Map<String, dynamic>? profile;
+
       if (user != null) {
-        final profile = await supabase.client
+        profile = await supabase.client
             .from('provider_profiles')
-            .select('provider_type, onboarding_status')
+            .select('*')
             .eq('user_id', user.id)
             .maybeSingle();
-        if (profile != null) {
-          setState(() {
-            _providerType = profile['provider_type'] ?? _providerType;
-            _onboardingStatus = profile['onboarding_status'] ?? 'pending_approval';
-            _activeBookings = _providerType == 'bartender'
-                ? List.from(_bartenderBookings)
-                : List.from(_chefBookings);
-          });
-        }
+      } else {
+        // Fallback to seeded approved chef profile in demo mode
+        profile = await supabase.client
+            .from('provider_profiles')
+            .select('*')
+            .eq('id', 'e0816dbb-dda7-4bda-aef6-dd02eab1bb4a')
+            .maybeSingle();
       }
-    } catch (_) {}
+
+      if (profile != null) {
+        final pid = profile['id']?.toString();
+        final pType = profile['provider_type']?.toString() ?? _providerType;
+        List<Map<String, dynamic>> loadedBookings = [];
+
+        if (pid != null) {
+          final rawBookings = await supabase.getProviderBookings(pid);
+          loadedBookings = rawBookings.map((b) {
+            final cust = b['customer'] as Map<String, dynamic>? ?? {};
+            final menu = b['menu'] as Map<String, dynamic>? ?? {};
+            final allergies = List<String>.from(b['allergies'] as List? ?? []);
+            final earnings = (b['provider_earnings'] as num?)?.toDouble() ?? 0.0;
+            return {
+              'id': b['booking_code']?.toString() ?? b['id'].toString(),
+              'db_id': b['id']?.toString(),
+              'customer': cust['full_name']?.toString() ?? 'Misafir',
+              'date': '${b['event_date']} • ${(b['event_time'] ?? '19:30').toString().substring(0, 5)}',
+              'guests': (b['guest_count'] as num?)?.toInt() ?? 4,
+              'duration_hours': (b['hours_count'] as num?)?.toInt() ?? 3,
+              'net_earnings': '₺${earnings.toStringAsFixed(0)}',
+              'status': b['status']?.toString() ?? 'pending',
+              'menu': menu['title']?.toString() ?? 'Özel Tadım Menüsü',
+              'tags': allergies.isNotEmpty ? allergies : ['Standart Mutfak Donanımı'],
+            };
+          }).toList();
+        }
+
+        if (!mounted) return;
+        setState(() {
+          _providerId = pid;
+          _providerType = pType;
+          _onboardingStatus = profile!['onboarding_status']?.toString() ?? 'approved';
+          _isAvailable = profile['is_available_now'] as bool? ?? true;
+          _walletBalance = (profile['wallet_balance'] as num?)?.toDouble() ?? _walletBalance;
+          _pendingEscrow = (profile['pending_escrow'] as num?)?.toDouble() ?? _pendingEscrow;
+          _completedEventsCount = (profile['completed_bookings_count'] as num?)?.toInt() ?? _completedEventsCount;
+          if (profile['verification_badges'] is Map<String, dynamic>) {
+            _verificationBadges = profile['verification_badges'] as Map<String, dynamic>;
+          }
+          _hasLiveSupabaseBookings = loadedBookings.isNotEmpty;
+          _activeBookings = loadedBookings.isNotEmpty
+              ? loadedBookings
+              : (_providerType == 'bartender'
+                  ? List.from(_bartenderBookings)
+                  : List.from(_chefBookings));
+        });
+      }
+    } catch (e) {
+      debugPrint('ProviderDashboard load error: $e');
+    }
   }
 
   @override
@@ -131,9 +191,11 @@ class _ProviderDashboardScreenState extends State<ProviderDashboardScreen> {
             onPressed: () {
               setState(() {
                 _providerType = isBartender ? 'chef' : 'bartender';
-                _activeBookings = _providerType == 'bartender'
-                    ? List.from(_bartenderBookings)
-                    : List.from(_chefBookings);
+                if (!_hasLiveSupabaseBookings) {
+                  _activeBookings = _providerType == 'bartender'
+                      ? List.from(_bartenderBookings)
+                      : List.from(_chefBookings);
+                }
               });
             },
             icon: Icon(
@@ -177,7 +239,12 @@ class _ProviderDashboardScreenState extends State<ProviderDashboardScreen> {
                   ),
                   value: _isAvailable,
                   activeThumbColor: const Color(0xFF7B5800),
-                  onChanged: (v) => setState(() => _isAvailable = v),
+                  onChanged: (v) {
+                    setState(() => _isAvailable = v);
+                    if (_providerId != null) {
+                      SupabaseService().updateProviderAvailabilityToggle(_providerId!, v);
+                    }
+                  },
                 ),
               ),
               const SizedBox(height: 16),
@@ -293,11 +360,14 @@ class _ProviderDashboardScreenState extends State<ProviderDashboardScreen> {
                         runSpacing: 8,
                         children: [
                           _buildBadgeChip('Kimlik Doğrulama',
-                              isApproved: _onboardingStatus == 'approved', isPending: _onboardingStatus == 'pending_approval'),
+                              isApproved: _verificationBadges['identity'] == true || _onboardingStatus == 'approved',
+                              isPending: _onboardingStatus == 'pending_approval'),
                           _buildBadgeChip('Hijyen Sertifikası',
-                              isApproved: false, isPending: true),
+                              isApproved: _verificationBadges['hygiene_cert'] == true,
+                              isPending: _verificationBadges['hygiene_cert'] != true),
                           _buildBadgeChip(isBartender ? 'Miksoloji Sertifikası' : 'Gastronomi Diploması',
-                              isApproved: false, isPending: false),
+                              isApproved: _verificationBadges['diploma'] == true,
+                              isPending: _verificationBadges['diploma'] != true),
                         ],
                       ),
                     ],
@@ -324,7 +394,7 @@ class _ProviderDashboardScreenState extends State<ProviderDashboardScreen> {
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        isBartender ? '\$1,850.00' : '\$2,450.00',
+                        '₺${_walletBalance.toStringAsFixed(2)}',
                         style: GoogleFonts.libreCaslonText(
                           fontSize: 32,
                           fontWeight: FontWeight.bold,
@@ -340,15 +410,15 @@ class _ProviderDashboardScreenState extends State<ProviderDashboardScreen> {
                           Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text('Pending Payouts', style: GoogleFonts.manrope(fontSize: 11, color: const Color(0xFF747878))),
-                              Text(isBartender ? '\$560.00' : '\$840.00', style: GoogleFonts.manrope(fontSize: 15, fontWeight: FontWeight.bold, color: const Color(0xFF7B5800))),
+                              Text('Pending Payouts (Escrow)', style: GoogleFonts.manrope(fontSize: 11, color: const Color(0xFF747878))),
+                              Text('₺${_pendingEscrow.toStringAsFixed(2)}', style: GoogleFonts.manrope(fontSize: 15, fontWeight: FontWeight.bold, color: const Color(0xFF7B5800))),
                             ],
                           ),
                           Column(
                             crossAxisAlignment: CrossAxisAlignment.end,
                             children: [
                               Text('Completed Events', style: GoogleFonts.manrope(fontSize: 11, color: const Color(0xFF747878))),
-                              Text(isBartender ? '12 Events' : '18 Events', style: GoogleFonts.manrope(fontSize: 15, fontWeight: FontWeight.bold, color: const Color(0xFF1B1C1C))),
+                              Text('$_completedEventsCount Events', style: GoogleFonts.manrope(fontSize: 15, fontWeight: FontWeight.bold, color: const Color(0xFF1B1C1C))),
                             ],
                           ),
                         ],
@@ -457,6 +527,10 @@ class _ProviderDashboardScreenState extends State<ProviderDashboardScreen> {
                                       setState(() {
                                         booking['status'] = newStatus;
                                       });
+                                      final dbId = (booking['db_id'] ?? booking['id'])?.toString();
+                                      if (dbId != null && !dbId.startsWith('b_')) {
+                                        SupabaseService().updateBookingStatus(dbId, newStatus);
+                                      }
                                     },
                                   );
                                 },
@@ -490,6 +564,10 @@ class _ProviderDashboardScreenState extends State<ProviderDashboardScreen> {
                                 child: ElevatedButton.icon(
                                   onPressed: () {
                                     setState(() => booking['status'] = 'accepted');
+                                    final dbId = booking['db_id']?.toString();
+                                    if (dbId != null) {
+                                      SupabaseService().updateBookingStatus(dbId, 'accepted');
+                                    }
                                     ScaffoldMessenger.of(context).showSnackBar(
                                       SnackBar(
                                         content: Text('Rezervasyon talebi kabul edildi!', style: GoogleFonts.manrope(fontSize: 13, color: Colors.white)),
@@ -513,6 +591,13 @@ class _ProviderDashboardScreenState extends State<ProviderDashboardScreen> {
                                 child: OutlinedButton.icon(
                                   onPressed: () {
                                     setState(() => booking['status'] = 'cancelled');
+                                    final dbId = booking['db_id']?.toString();
+                                    if (dbId != null) {
+                                      SupabaseService().refundEscrowPayment(
+                                        bookingId: dbId,
+                                        reason: 'Sağlayıcı tarafından reddedildi.',
+                                      );
+                                    }
                                   },
                                   icon: const Icon(Icons.cancel_outlined, size: 16),
                                   label: Text('Reddet', style: GoogleFonts.manrope(fontSize: 12, fontWeight: FontWeight.bold)),

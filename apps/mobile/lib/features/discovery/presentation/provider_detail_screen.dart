@@ -2,18 +2,22 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../core/providers/app_settings_provider.dart';
+import '../../../core/providers/booking_provider.dart';
+import '../../../core/services/supabase_service.dart';
 import '../../../core/theme/app_theme.dart';
 
 class ProviderDetailScreen extends ConsumerStatefulWidget {
   final Map<String, dynamic> provider;
   final VoidCallback onStartBooking;
   final VoidCallback? onBack;
+  final Function(Map<String, dynamic> provider)? onOpenChefProfile;
 
   const ProviderDetailScreen({
     super.key,
     required this.provider,
     required this.onStartBooking,
     this.onBack,
+    this.onOpenChefProfile,
   });
 
   @override
@@ -53,12 +57,38 @@ class _ProviderDetailScreenState extends ConsumerState<ProviderDetailScreen> wit
     'https://images.unsplash.com/photo-1510812431401-41d2bd2722f3?w=800&auto=format&fit=crop&q=80',
   ];
 
-  List<String> get _galleryImages => isMixologist ? _mixologistGalleryImages : _chefGalleryImages;
+  List<String> get _galleryImages {
+    final portfolio = widget.provider['portfolio_images'];
+    if (portfolio is List && portfolio.isNotEmpty) {
+      return [...portfolio.map((e) => e.toString()), ...(isMixologist ? _mixologistGalleryImages : _chefGalleryImages)];
+    }
+    return isMixologist ? _mixologistGalleryImages : _chefGalleryImages;
+  }
+
+  List<Map<String, dynamic>> _liveMenus = [];
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 3, vsync: this);
+    final embeddedMenus = widget.provider['menus'];
+    if (embeddedMenus is List && embeddedMenus.isNotEmpty) {
+      _liveMenus = List<Map<String, dynamic>>.from(embeddedMenus);
+    } else {
+      _fetchProviderMenus();
+    }
+  }
+
+  Future<void> _fetchProviderMenus() async {
+    try {
+      final pid = widget.provider['id']?.toString() ?? '';
+      if (pid.length == 36) {
+        final menus = await SupabaseService().getProviderMenus(pid);
+        if (mounted && menus.isNotEmpty) {
+          setState(() => _liveMenus = menus);
+        }
+      }
+    } catch (_) {}
   }
 
   @override
@@ -185,86 +215,165 @@ class _ProviderDetailScreenState extends ConsumerState<ProviderDetailScreen> wit
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
+                          // Chef Header Row with tap target
+                          InkWell(
+                            onTap: () {
+                              if (widget.onOpenChefProfile != null) {
+                                widget.onOpenChefProfile!(provider);
+                              }
+                            },
+                            borderRadius: BorderRadius.circular(16),
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(vertical: 4),
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                 children: [
-                                  Text(
-                                    name,
-                                    style: GoogleFonts.libreCaslonText(
-                                      fontSize: 28,
-                                      fontWeight: FontWeight.bold,
-                                      color: palette.textPrimary,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 6),
-                                  Row(
-                                    children: [
-                                      Icon(Icons.star_rounded, color: palette.goldAccent, size: 18),
-                                      const SizedBox(width: 4),
-                                      Text(
-                                        rating,
-                                        style: GoogleFonts.manrope(
-                                          fontSize: 14,
-                                          fontWeight: FontWeight.bold,
-                                          color: palette.textPrimary,
-                                        ),
-                                      ),
-                                      const SizedBox(width: 4),
-                                      Text(
-                                        '(124 reviews)',
-                                        style: GoogleFonts.manrope(
-                                          fontSize: 13,
-                                          color: palette.textMuted,
-                                        ),
-                                      ),
-                                      const SizedBox(width: 10),
-                                      Container(
-                                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                                        decoration: BoxDecoration(
-                                          color: palette.goldGlow,
-                                          borderRadius: BorderRadius.circular(12),
-                                          border: Border.all(color: palette.goldAccent.withValues(alpha: 0.3)),
-                                        ),
-                                        child: Row(
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Row(
                                           children: [
-                                            Icon(Icons.verified_rounded, color: palette.goldAccent, size: 12),
+                                            Flexible(
+                                              child: Text(
+                                                name,
+                                                style: GoogleFonts.libreCaslonText(
+                                                  fontSize: 26,
+                                                  fontWeight: FontWeight.bold,
+                                                  color: palette.textPrimary,
+                                                ),
+                                                overflow: TextOverflow.ellipsis,
+                                              ),
+                                            ),
+                                            const SizedBox(width: 6),
+                                            Icon(Icons.arrow_forward_ios_rounded, color: palette.goldAccent, size: 14),
+                                          ],
+                                        ),
+                                        const SizedBox(height: 6),
+                                        Row(
+                                          children: [
+                                            Icon(Icons.star_rounded, color: palette.goldAccent, size: 18),
                                             const SizedBox(width: 4),
                                             Text(
-                                              'Verified',
+                                              rating,
                                               style: GoogleFonts.manrope(
-                                                fontSize: 11,
+                                                fontSize: 14,
                                                 fontWeight: FontWeight.bold,
-                                                color: palette.goldAccent,
+                                                color: palette.textPrimary,
+                                              ),
+                                            ),
+                                            const SizedBox(width: 4),
+                                            Text(
+                                              '(124 reviews)',
+                                              style: GoogleFonts.manrope(
+                                                fontSize: 13,
+                                                color: palette.textMuted,
+                                              ),
+                                            ),
+                                            const SizedBox(width: 10),
+                                            Container(
+                                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                              decoration: BoxDecoration(
+                                                color: palette.goldGlow,
+                                                borderRadius: BorderRadius.circular(12),
+                                                border: Border.all(color: palette.goldAccent.withValues(alpha: 0.3)),
+                                              ),
+                                              child: Row(
+                                                children: [
+                                                  Icon(Icons.verified_rounded, color: palette.goldAccent, size: 12),
+                                                  const SizedBox(width: 4),
+                                                  Text(
+                                                    'Verified',
+                                                    style: GoogleFonts.manrope(
+                                                      fontSize: 11,
+                                                      fontWeight: FontWeight.bold,
+                                                      color: palette.goldAccent,
+                                                    ),
+                                                  ),
+                                                ],
                                               ),
                                             ),
                                           ],
                                         ),
-                                      ),
-                                    ],
+                                      ],
+                                    ),
+                                  ),
+                                  const SizedBox(width: 12),
+
+                                  // Avatar Photo
+                                  ClipRRect(
+                                    borderRadius: BorderRadius.circular(40),
+                                    child: Image.network(
+                                      provider['image'] ??
+                                          provider['avatar'] ??
+                                          (isMixologist
+                                              ? 'https://lh3.googleusercontent.com/aida-public/AB6AXuDaVyI-CnIxT8YodSe6yue9G2LBJOi4QhgNlNMPJnjuAr-94xAgbuWyK3sO69pqU0pZHXmZX3vx0-EvNW9DOg84ESyCgW7FSvqZDa2zT8N4D6ipCIfxDraqPiYrQDxbGldcRLyepDXtlsaxJ4xaUgVwlylXd6xBYGqGQPijq1y7LRa8dlusjK03lBDWKMLyvPIZ1WzmLyhaoq4u5QlrvOJ1Do_iiFI3x3_Tyzf3RZvv4ClF9Vfr6xTh'
+                                              : 'https://lh3.googleusercontent.com/aida-public/AB6AXuCONoMmOXp0IjymBppcR4QkB6xr80XfagXEBCa0yI1Zt4NWfpJb6dPtzzSmAeUJCZ0UEdd9SEP-anJt2rq_REq4HHH3-K8902WrCKTp-oJluokeNMEJ8w5jKPmGBUZtB0bF9sTCTsBrvbCy2HVMAgcS2n4DSFhUG_gDEO1kbjiiDRKcw16uXYIwjsQE1rioTL1bVJW-635g42PTmwpQTKvuOc7jB-TrTegTDa_K8FhG5mF0rMFZXsHr'),
+                                      width: 64,
+                                      height: 64,
+                                      fit: BoxFit.cover,
+                                    ),
                                   ),
                                 ],
                               ),
-
-                              // Avatar Photo
-                              ClipRRect(
-                                borderRadius: BorderRadius.circular(40),
-                                child: Image.network(
-                                  provider['image'] ??
-                                      provider['avatar'] ??
-                                      (isMixologist
-                                          ? 'https://lh3.googleusercontent.com/aida-public/AB6AXuDaVyI-CnIxT8YodSe6yue9G2LBJOi4QhgNlNMPJnjuAr-94xAgbuWyK3sO69pqU0pZHXmZX3vx0-EvNW9DOg84ESyCgW7FSvqZDa2zT8N4D6ipCIfxDraqPiYrQDxbGldcRLyepDXtlsaxJ4xaUgVwlylXd6xBYGqGQPijq1y7LRa8dlusjK03lBDWKMLyvPIZ1WzmLyhaoq4u5QlrvOJ1Do_iiFI3x3_Tyzf3RZvv4ClF9Vfr6xTh'
-                                          : 'https://lh3.googleusercontent.com/aida-public/AB6AXuCONoMmOXp0IjymBppcR4QkB6xr80XfagXEBCa0yI1Zt4NWfpJb6dPtzzSmAeUJCZ0UEdd9SEP-anJt2rq_REq4HHH3-K8902WrCKTp-oJluokeNMEJ8w5jKPmGBUZtB0bF9sTCTsBrvbCy2HVMAgcS2n4DSFhUG_gDEO1kbjiiDRKcw16uXYIwjsQE1rioTL1bVJW-635g42PTmwpQTKvuOc7jB-TrTegTDa_K8FhG5mF0rMFZXsHr'),
-                                  width: 64,
-                                  height: 64,
-                                  fit: BoxFit.cover,
-                                ),
-                              ),
-                            ],
+                            ),
                           ),
-                          const SizedBox(height: 20),
+                          const SizedBox(height: 14),
+
+                          // Direct Profile & Calendar Action Card
+                          InkWell(
+                            onTap: () {
+                              if (widget.onOpenChefProfile != null) {
+                                widget.onOpenChefProfile!(provider);
+                              }
+                            },
+                            borderRadius: BorderRadius.circular(14),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                              decoration: BoxDecoration(
+                                color: palette.surfaceElevated,
+                                borderRadius: BorderRadius.circular(14),
+                                border: Border.all(color: palette.goldAccent.withValues(alpha: 0.3)),
+                              ),
+                              child: Row(
+                                children: [
+                                  Container(
+                                    padding: const EdgeInsets.all(7),
+                                    decoration: BoxDecoration(
+                                      color: palette.goldAccent.withValues(alpha: 0.15),
+                                      shape: BoxShape.circle,
+                                    ),
+                                    child: Icon(Icons.calendar_month_rounded, color: palette.goldAccent, size: 18),
+                                  ),
+                                  const SizedBox(width: 10),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          'Şef Profili, Diplomaları & Müsaitlik Takvimi',
+                                          style: GoogleFonts.manrope(
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.bold,
+                                            color: palette.textPrimary,
+                                          ),
+                                        ),
+                                        Text(
+                                          'Eğitimler, 3 kriterli değerlendirmeler ve açık günler',
+                                          style: GoogleFonts.manrope(
+                                            fontSize: 11,
+                                            color: palette.textMuted,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  Icon(Icons.arrow_forward_ios_rounded, color: palette.goldAccent, size: 12),
+                                ],
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 16),
                           Divider(color: palette.border),
                           const SizedBox(height: 16),
 
@@ -279,9 +388,13 @@ class _ProviderDetailScreenState extends ConsumerState<ProviderDetailScreen> wit
                           ),
                           const SizedBox(height: 8),
                           Text(
-                            isMixologist
-                                ? 'Award-winning mixologist specializing in bespoke craft cocktail menus, botanical infusions, and luxury private bar service. Brings complete portable bar setup and premium presentation to your event.'
-                                : 'Italian Michelin-star background, specializing in truffle pasta and contemporary Mediterranean cuisine. Chef Marco brings the warmth of a rustic Italian kitchen combined with the precision of high-end gastronomy directly to your dining room.',
+                            (provider['bio']?.toString().trim().isNotEmpty == true)
+                                ? provider['bio'].toString()
+                                : (provider['description']?.toString().trim().isNotEmpty == true
+                                    ? provider['description'].toString()
+                                    : (isMixologist
+                                        ? 'Award-winning mixologist specializing in bespoke craft cocktail menus, botanical infusions, and luxury private bar service.'
+                                        : 'Italian Michelin-star background, specializing in truffle pasta and contemporary Mediterranean cuisine.')),
                             style: GoogleFonts.manrope(
                               fontSize: 14,
                               color: palette.textMuted,
@@ -291,18 +404,25 @@ class _ProviderDetailScreenState extends ConsumerState<ProviderDetailScreen> wit
                           const SizedBox(height: 12),
 
                           // Tag Pills
-                          Row(
-                            children: isMixologist
-                                ? [
-                                    _buildTagPill('Craft Cocktails', palette),
-                                    _buildTagPill('Botanical', palette),
-                                    _buildTagPill('Bar Master', palette),
-                                  ]
-                                : [
-                                    _buildTagPill('Italian', palette),
-                                    _buildTagPill('Fine Dining', palette),
-                                    _buildTagPill('Pasta Expert', palette),
-                                  ],
+                          Wrap(
+                            spacing: 8,
+                            runSpacing: 8,
+                            children: (provider['tags'] is List && (provider['tags'] as List).isNotEmpty)
+                                ? (provider['tags'] as List)
+                                    .take(4)
+                                    .map((t) => _buildTagPill(t.toString(), palette))
+                                    .toList()
+                                : (isMixologist
+                                    ? [
+                                        _buildTagPill('Craft Cocktails', palette),
+                                        _buildTagPill('Botanical', palette),
+                                        _buildTagPill('Bar Master', palette),
+                                      ]
+                                    : [
+                                        _buildTagPill('Italian', palette),
+                                        _buildTagPill('Fine Dining', palette),
+                                        _buildTagPill('Pasta Expert', palette),
+                                      ]),
                           ),
                           const SizedBox(height: 20),
                           Divider(color: palette.border),
@@ -330,44 +450,64 @@ class _ProviderDetailScreenState extends ConsumerState<ProviderDetailScreen> wit
                               controller: _tabController,
                               children: [
                                 // Menus / Cocktail Packages Tab
-                                Column(
-                                  children: isMixologist
-                                      ? [
-                                          _buildMenuItem(
-                                            title: 'Signature Craft Cocktail Bar (4 Saat)',
-                                            subtitle: 'Customized menu of 4 signature cocktails, house-made syrups, and fresh botanical garnishes.',
-                                            price: '₺850/saat',
-                                            tag: 'En Popüler',
-                                            palette: palette,
-                                            isDark: isDark,
-                                          ),
-                                          const SizedBox(height: 12),
-                                          _buildMenuItem(
-                                            title: 'Classic & Vintage Tasting (3 Saat)',
-                                            subtitle: 'Curated tasting of prohibition-era classics and elevated twists.',
-                                            price: '₺750/saat',
-                                            palette: palette,
-                                            isDark: isDark,
-                                          ),
-                                        ]
-                                      : [
-                                          _buildMenuItem(
-                                            title: 'The Truffle Experience (3 Aşamalı)',
-                                            subtitle: 'A curated journey through Northern Italy focusing on seasonal truffles.',
-                                            price: '₺1.850/kişi',
-                                            tag: 'En Popüler',
-                                            palette: palette,
-                                            isDark: isDark,
-                                          ),
-                                          const SizedBox(height: 12),
-                                          _buildMenuItem(
-                                            title: 'Grand Tasting (5 Aşamalı)',
-                                            subtitle: 'An expansive culinary exploration including seafood, pasta, and premium wagyu.',
-                                            price: '₺2.450/kişi',
-                                            palette: palette,
-                                            isDark: isDark,
-                                          ),
-                                        ],
+                                SingleChildScrollView(
+                                  child: Column(
+                                    children: _liveMenus.isNotEmpty
+                                        ? _liveMenus.asMap().entries.map((entry) {
+                                            final m = entry.value;
+                                            final priceVal = (m['price_per_person'] as num?)?.toDouble() ?? 1650.0;
+                                            return Padding(
+                                              padding: const EdgeInsets.only(bottom: 12),
+                                              child: _buildMenuItem(
+                                                title: m['title']?.toString() ?? 'Özel Menü',
+                                                subtitle: m['description']?.toString() ?? '',
+                                                price: isMixologist
+                                                    ? '₺${priceVal.toStringAsFixed(0)}/kişi'
+                                                    : '₺${priceVal.toStringAsFixed(0)}/kişi',
+                                                tag: entry.key == 0 ? 'İmza Menü' : null,
+                                                palette: palette,
+                                                isDark: isDark,
+                                              ),
+                                            );
+                                          }).toList()
+                                        : (isMixologist
+                                            ? [
+                                                _buildMenuItem(
+                                                  title: 'Signature Craft Cocktail Bar (4 Saat)',
+                                                  subtitle: 'Customized menu of 4 signature cocktails, house-made syrups, and fresh botanical garnishes.',
+                                                  price: '₺850/saat',
+                                                  tag: 'En Popüler',
+                                                  palette: palette,
+                                                  isDark: isDark,
+                                                ),
+                                                const SizedBox(height: 12),
+                                                _buildMenuItem(
+                                                  title: 'Classic & Vintage Tasting (3 Saat)',
+                                                  subtitle: 'Curated tasting of prohibition-era classics and elevated twists.',
+                                                  price: '₺750/saat',
+                                                  palette: palette,
+                                                  isDark: isDark,
+                                                ),
+                                              ]
+                                            : [
+                                                _buildMenuItem(
+                                                  title: 'The Truffle Experience (3 Aşamalı)',
+                                                  subtitle: 'A curated journey through Northern Italy focusing on seasonal truffles.',
+                                                  price: '₺1.850/kişi',
+                                                  tag: 'En Popüler',
+                                                  palette: palette,
+                                                  isDark: isDark,
+                                                ),
+                                                const SizedBox(height: 12),
+                                                _buildMenuItem(
+                                                  title: 'Grand Tasting (5 Aşamalı)',
+                                                  subtitle: 'An expansive culinary exploration including seafood, pasta, and premium wagyu.',
+                                                  price: '₺2.450/kişi',
+                                                  palette: palette,
+                                                  isDark: isDark,
+                                                ),
+                                              ]),
+                                  ),
                                 ),
 
                                 // Requirements Tab
@@ -405,10 +545,46 @@ class _ProviderDetailScreenState extends ConsumerState<ProviderDetailScreen> wit
                                 ),
 
                                 // Reviews Tab
-                                Center(
-                                  child: Text(
-                                    '124 Verified Reviews (4.8 ★)',
-                                    style: GoogleFonts.manrope(color: palette.textMuted),
+                                SingleChildScrollView(
+                                  child: Column(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      const SizedBox(height: 20),
+                                      Text(
+                                        '124 Doğrulanmış Değerlendirme ($rating ★)',
+                                        style: GoogleFonts.libreCaslonText(
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.bold,
+                                          color: palette.textPrimary,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 8),
+                                      Text(
+                                        'Lezzet: 4.9 ★ • Hijyen: 5.0 ★ • Sunum: 4.8 ★',
+                                        style: GoogleFonts.manrope(
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.bold,
+                                          color: palette.goldAccent,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 16),
+                                      OutlinedButton.icon(
+                                        onPressed: () {
+                                          if (widget.onOpenChefProfile != null) {
+                                            widget.onOpenChefProfile!(provider);
+                                          }
+                                        },
+                                        icon: Icon(Icons.rate_review_outlined, size: 16, color: palette.textPrimary),
+                                        label: Text(
+                                          'Tüm Yorumları ve Şef Profilini Gör',
+                                          style: GoogleFonts.manrope(fontSize: 12, fontWeight: FontWeight.bold, color: palette.textPrimary),
+                                        ),
+                                        style: OutlinedButton.styleFrom(
+                                          side: BorderSide(color: palette.border),
+                                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                                        ),
+                                      ),
+                                    ],
                                   ),
                                 ),
                               ],
@@ -523,7 +699,7 @@ class _ProviderDetailScreenState extends ConsumerState<ProviderDetailScreen> wit
               ),
               const SizedBox(height: 8),
               OutlinedButton(
-                onPressed: widget.onStartBooking,
+                onPressed: _handleStartBooking,
                 style: OutlinedButton.styleFrom(
                   side: BorderSide(color: palette.goldAccent),
                   backgroundColor: isDark ? palette.surfaceElevated : Colors.transparent,
@@ -562,6 +738,197 @@ class _ProviderDetailScreenState extends ConsumerState<ProviderDetailScreen> wit
     );
   }
 
+  void _handleStartBooking() {
+    final bookingState = ref.read(bookingProvider);
+    if (bookingState.hasActiveBooking && bookingState.currentActiveBooking != null) {
+      _showActiveBookingAlert(bookingState.currentActiveBooking!);
+      return;
+    }
+    widget.onStartBooking();
+  }
+
+  void _showActiveBookingAlert(BookingModel activeBooking) {
+    final settings = ref.read(appSettingsProvider);
+    final isDark = settings.isDarkMode;
+    final palette = AppThemePalette(isDark);
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: palette.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.all(24.0),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: palette.goldAccent.withValues(alpha: 0.15),
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(Icons.info_outline_rounded, color: palette.goldAccent, size: 24),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Aktif Rezervasyonunuz Bulunuyor',
+                            style: GoogleFonts.libreCaslonText(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                              color: palette.textPrimary,
+                            ),
+                          ),
+                          Text(
+                            'Aynı anda yalnızca 1 rezervasyon yürütülebilir',
+                            style: GoogleFonts.manrope(
+                              fontSize: 12,
+                              color: palette.textMuted,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                Container(
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: palette.surfaceElevated,
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: palette.borderSubtle),
+                  ),
+                  child: Row(
+                    children: [
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(10),
+                        child: Image.network(
+                          activeBooking.providerImage,
+                          width: 48,
+                          height: 48,
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, __, ___) => Container(
+                            width: 48,
+                            height: 48,
+                            color: palette.goldGlow,
+                            child: Icon(Icons.person, color: palette.goldAccent),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              '${activeBooking.providerName} (#${activeBooking.id})',
+                              style: GoogleFonts.manrope(
+                                fontSize: 13,
+                                fontWeight: FontWeight.bold,
+                                color: palette.textPrimary,
+                              ),
+                            ),
+                            Text(
+                              activeBooking.menuTitle,
+                              style: GoogleFonts.manrope(
+                                fontSize: 11,
+                                color: palette.textMuted,
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              'Durum: Canlı Takipte • ${activeBooking.eventTime}',
+                              style: GoogleFonts.manrope(
+                                fontSize: 11,
+                                fontWeight: FontWeight.bold,
+                                color: palette.goldAccent,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 14),
+                Text(
+                  'GastroHost politikası ve kusursuz şef operasyonu gereği aynı anda tek bir rezervasyon yürütülebilir. Mevcut etkinliğiniz tamamlandığında yeni bir şef rezerve edebilirsiniz.',
+                  style: GoogleFonts.manrope(
+                    fontSize: 12,
+                    color: palette.textMuted,
+                    height: 1.4,
+                  ),
+                ),
+                const SizedBox(height: 20),
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton(
+                        onPressed: () => Navigator.pop(ctx),
+                        style: OutlinedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          side: BorderSide(color: palette.border),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        ),
+                        child: Text(
+                          'Kapat',
+                          style: GoogleFonts.manrope(
+                            fontSize: 13,
+                            fontWeight: FontWeight.bold,
+                            color: palette.textPrimary,
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: ElevatedButton(
+                        onPressed: () {
+                          Navigator.pop(ctx);
+                          if (widget.onBack != null) {
+                            widget.onBack!();
+                          } else {
+                            Navigator.of(context).maybePop();
+                          }
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: isDark ? palette.goldAccent : Colors.black,
+                          foregroundColor: isDark ? const Color(0xFF0B0D11) : Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          elevation: 0,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        ),
+                        child: Text(
+                          'Rezervasyona Dön',
+                          style: GoogleFonts.manrope(
+                            fontSize: 13,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   Widget _buildBottomActionBar(AppThemePalette palette, bool isDark) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
@@ -569,48 +936,51 @@ class _ProviderDetailScreenState extends ConsumerState<ProviderDetailScreen> wit
         color: palette.surface,
         border: Border(top: BorderSide(color: palette.border)),
       ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                isMixologist ? '₺850\'den başlayan' : '₺1.850\'den başlayan',
+      child: SafeArea(
+        top: false,
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  isMixologist ? '₺850\'den başlayan' : '₺1.850\'den başlayan',
+                  style: GoogleFonts.manrope(
+                    fontSize: 17,
+                    fontWeight: FontWeight.bold,
+                    color: palette.textPrimary,
+                  ),
+                ),
+                Text(
+                  isMixologist ? 'saatlik ücret' : 'kişi başı',
+                  style: GoogleFonts.manrope(
+                    fontSize: 12,
+                    color: palette.textMuted,
+                    decoration: TextDecoration.underline,
+                  ),
+                ),
+              ],
+            ),
+            ElevatedButton(
+              onPressed: _handleStartBooking,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: isDark ? palette.goldAccent : Colors.black,
+                foregroundColor: isDark ? const Color(0xFF0B0D11) : Colors.white,
+                padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 14),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
+              ),
+              child: Text(
+                'Book Now',
                 style: GoogleFonts.manrope(
-                  fontSize: 17,
+                  fontSize: 14,
                   fontWeight: FontWeight.bold,
-                  color: palette.textPrimary,
                 ),
               ),
-              Text(
-                isMixologist ? 'saatlik ücret' : 'kişi başı',
-                style: GoogleFonts.manrope(
-                  fontSize: 12,
-                  color: palette.textMuted,
-                  decoration: TextDecoration.underline,
-                ),
-              ),
-            ],
-          ),
-          ElevatedButton(
-            onPressed: widget.onStartBooking,
-            style: ElevatedButton.styleFrom(
-              backgroundColor: isDark ? palette.goldAccent : Colors.black,
-              foregroundColor: isDark ? const Color(0xFF0B0D11) : Colors.white,
-              padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 14),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
             ),
-            child: Text(
-              'Book Now',
-              style: GoogleFonts.manrope(
-                fontSize: 14,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../core/providers/app_settings_provider.dart';
+import '../../../core/providers/booking_provider.dart';
 import '../../../core/services/supabase_service.dart';
 import '../../../core/theme/app_theme.dart';
 
@@ -10,6 +11,7 @@ class BookingWizardScreen extends ConsumerStatefulWidget {
   final Map<String, dynamic> menu;
   final Function(String bookingId) onBookingComplete;
   final VoidCallback? onBack;
+  final DateTime? initialDate;
 
   const BookingWizardScreen({
     super.key,
@@ -17,6 +19,7 @@ class BookingWizardScreen extends ConsumerStatefulWidget {
     required this.menu,
     required this.onBookingComplete,
     this.onBack,
+    this.initialDate,
   });
 
   @override
@@ -24,28 +27,82 @@ class BookingWizardScreen extends ConsumerStatefulWidget {
 }
 
 class _BookingWizardScreenState extends ConsumerState<BookingWizardScreen> {
-  DateTime _selectedDate = DateTime.now().add(const Duration(days: 2));
+  late DateTime _selectedDate;
   TimeOfDay _selectedTime = const TimeOfDay(hour: 19, minute: 30);
+
+  @override
+  void initState() {
+    super.initState();
+    _selectedDate = widget.initialDate ?? DateTime.now().add(const Duration(days: 2));
+    _includeBartenderUpsell = widget.provider['include_bartender_upsell'] == true;
+  }
   int _guestCount = 4;
   int _hoursCount = 3;
 
   bool _hasStove = true;
   bool _hasOven = true;
   bool _hasBlender = true;
+  bool _ingredientsIncluded = true;
+  bool _includeBartenderUpsell = false;
+  static const double _bartenderUpsellFee = 2550.0;
 
   final TextEditingController _addressController = TextEditingController(
     text: 'Caferağa Mah. Moda Cad. No:14 D:3, Kadıköy / İstanbul',
   );
 
+  final Set<String> _selectedAllergies = {};
+  final TextEditingController _allergyNoteController = TextEditingController();
+
+  final List<Map<String, dynamic>> _allergenOptions = [
+    {'name': 'Glüten Hassasiyeti (Çölyak)', 'icon': Icons.grain_rounded},
+    {'name': 'Laktoz İntoleransı', 'icon': Icons.water_drop_outlined},
+    {'name': 'Kabuklu Deniz Ürünü', 'icon': Icons.set_meal_rounded},
+    {'name': 'Fındık & Fıstık Alerjisi', 'icon': Icons.warning_amber_rounded},
+    {'name': 'Yumurta Alerjisi', 'icon': Icons.egg_outlined},
+    {'name': 'Soya Alerjisi', 'icon': Icons.grass_rounded},
+    {'name': 'Vejetaryen Menü', 'icon': Icons.eco_rounded},
+    {'name': 'Vegan Menü', 'icon': Icons.spa_rounded},
+    {'name': 'Helal Kesim / Koşer', 'icon': Icons.verified_user_outlined},
+    {'name': 'Alkol Hassasiyeti', 'icon': Icons.no_drinks_rounded},
+  ];
+
+  @override
+  void dispose() {
+    _addressController.dispose();
+    _allergyNoteController.dispose();
+    super.dispose();
+  }
+
   bool get _isHourly =>
       widget.provider['provider_type'] == 'bartender' ||
       (widget.provider['price']?.toString().contains('/hr') ?? false) ||
+      (widget.provider['price']?.toString().contains('/saat') ?? false) ||
       (widget.provider['id']?.toString().startsWith('m') ?? false);
 
-  double get _unitPrice => _isHourly ? 850.0 : 1850.0;
-  double get _totalAmount => _isHourly ? _unitPrice * _hoursCount : _unitPrice * _guestCount;
-  double get _platformFee => _totalAmount * 0.10; // 10%
-  double get _providerEarnings => _totalAmount - _platformFee; // 90%
+  double get _unitPrice {
+    final menuPrice = (widget.menu['price_per_person'] as num?)?.toDouble();
+    if (menuPrice != null && menuPrice > 0) return menuPrice;
+    final provHourly = (widget.provider['hourly_rate'] as num?)?.toDouble();
+    if (_isHourly && provHourly != null && provHourly > 0) return provHourly;
+    final provPerPerson = (widget.provider['price_per_person'] as num?)?.toDouble();
+    if (!_isHourly && provPerPerson != null && provPerPerson > 0) return provPerPerson;
+    final provUnitPrice = (widget.provider['unit_price'] as num?)?.toDouble();
+    if (provUnitPrice != null && provUnitPrice > 0) return provUnitPrice;
+    return _isHourly ? 850.0 : 1850.0;
+  }
+
+  double get _effectiveUnitPrice =>
+      _ingredientsIncluded ? _unitPrice : (_unitPrice * 0.80);
+
+  double get _baseServiceAmount => _isHourly
+      ? _effectiveUnitPrice * _hoursCount
+      : _effectiveUnitPrice * _guestCount;
+
+  double get _totalAmount =>
+      _baseServiceAmount + (!_isHourly && _includeBartenderUpsell ? _bartenderUpsellFee : 0.0);
+
+  double get _platformFee => _totalAmount * 0.10; // %10 GastroHost Komisyonu
+  double get _providerEarnings => _totalAmount - _platformFee; // %90 Uzman Hakedişi
 
   Future<void> _selectDate(bool isDark, AppThemePalette palette) async {
     final DateTime? picked = await showDatePicker(
@@ -291,7 +348,179 @@ class _BookingWizardScreenState extends ConsumerState<BookingWizardScreen> {
               ),
               const SizedBox(height: 20),
 
-              // Step 3: Etkinlik Adresi & Konum Bilgisi
+              // Step 3: Alerjen & Özel Diyet Tercihleri (PRD Tech Spec 3.4)
+              _buildSectionCard(
+                icon: Icons.health_and_safety_rounded,
+                title: 'Alerjen & Özel Diyet Tercihleri',
+                subtitle: 'Şefiniz malzeme tedariğini ve hazırlık tezgahını bu tercihlere göre özel organize edecektir.',
+                palette: palette,
+                isDark: isDark,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: _allergenOptions.map((opt) {
+                        final String name = opt['name'];
+                        final IconData icon = opt['icon'];
+                        final isSelected = _selectedAllergies.contains(name);
+
+                        return FilterChip(
+                          avatar: Icon(
+                            icon,
+                            size: 16,
+                            color: isSelected
+                                ? (isDark ? const Color(0xFF0B0D11) : Colors.white)
+                                : palette.goldAccent,
+                          ),
+                          label: Text(name),
+                          selected: isSelected,
+                          labelStyle: GoogleFonts.manrope(
+                            fontSize: 12,
+                            fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                            color: isSelected
+                                ? (isDark ? const Color(0xFF0B0D11) : Colors.white)
+                                : palette.textPrimary,
+                          ),
+                          backgroundColor: palette.surfaceElevated,
+                          selectedColor: isDark ? palette.goldAccent : Colors.black,
+                          checkmarkColor: isDark ? const Color(0xFF0B0D11) : Colors.white,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16),
+                            side: BorderSide(
+                              color: isSelected
+                                  ? Colors.transparent
+                                  : palette.borderSubtle,
+                            ),
+                          ),
+                          onSelected: (selected) {
+                            setState(() {
+                              if (selected) {
+                                _selectedAllergies.add(name);
+                              } else {
+                                _selectedAllergies.remove(name);
+                              }
+                            });
+                          },
+                        );
+                      }).toList(),
+                    ),
+                    const SizedBox(height: 14),
+                    Text(
+                      'Özel Alerjen / Diyet Notu (Varsa)',
+                      style: GoogleFonts.manrope(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: palette.textMuted,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    TextField(
+                      controller: _allergyNoteController,
+                      maxLines: 2,
+                      style: GoogleFonts.manrope(fontSize: 13, color: palette.textPrimary),
+                      decoration: InputDecoration(
+                        hintText: 'Örn: 1 misafirimizde kabuklu fıstık alerjisi var, ayrı tavada hazırlansın...',
+                        hintStyle: GoogleFonts.manrope(fontSize: 12, color: palette.textMuted.withValues(alpha: 0.6)),
+                        filled: true,
+                        fillColor: palette.surfaceElevated,
+                        contentPadding: const EdgeInsets.all(12),
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide(color: palette.border)),
+                        enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide(color: palette.border)),
+                        focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide(color: palette.goldAccent)),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 20),
+
+              // Step 3.5: Malzeme Tedarik Tercihi (PRD 3.3) & Barmen Upsell (PRD 3.4)
+              _buildSectionCard(
+                icon: Icons.shopping_basket_rounded,
+                title: 'Malzeme Tedariği & Ekstra Deneyim',
+                subtitle: 'Taze malzemelerin kim tarafından temin edileceğini ve miksoloji eşleşmesini seçin.',
+                palette: palette,
+                isDark: isDark,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _buildSwitchTile(
+                      title: _ingredientsIncluded
+                          ? 'Malzemeler Uzmandan (%100 Tedarik Dahil)'
+                          : 'Malzemeleri Ev Sahibi Temin Eder (%20 İndirim)',
+                      value: _ingredientsIncluded,
+                      palette: palette,
+                      onChanged: (v) => setState(() => _ingredientsIncluded = v),
+                    ),
+                    if (!_isHourly) ...[
+                      const SizedBox(height: 12),
+                      Container(
+                        padding: const EdgeInsets.all(14),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF9333EA).withValues(alpha: isDark ? 0.14 : 0.07),
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(
+                            color: _includeBartenderUpsell
+                                ? const Color(0xFF9333EA)
+                                : const Color(0xFF9333EA).withValues(alpha: 0.3),
+                            width: _includeBartenderUpsell ? 1.5 : 1.0,
+                          ),
+                        ),
+                        child: Row(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.all(8),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF9333EA).withValues(alpha: 0.2),
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              child: const Icon(
+                                Icons.local_bar_rounded,
+                                color: Color(0xFFC084FC),
+                                size: 20,
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Master Miksolojist & Mobil Bar Ekle',
+                                    style: GoogleFonts.manrope(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w800,
+                                      color: palette.textPrimary,
+                                    ),
+                                  ),
+                                  Text(
+                                    '3 saat boyunca imza kokteyl eşleşmesi (+₺${_bartenderUpsellFee.toStringAsFixed(0)})',
+                                    style: GoogleFonts.manrope(
+                                      fontSize: 11,
+                                      color: palette.textMuted,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            Switch.adaptive(
+                              value: _includeBartenderUpsell,
+                              activeThumbColor: const Color(0xFF9333EA),
+                              activeTrackColor: const Color(0xFF9333EA).withValues(alpha: 0.35),
+                              onChanged: (v) => setState(() => _includeBartenderUpsell = v),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              const SizedBox(height: 20),
+
+              // Step 4: Etkinlik Adresi & Konum Bilgisi
               _buildSectionCard(
                 icon: Icons.location_on_rounded,
                 title: 'Etkinlik Adresi & Konum Bilgisi',
@@ -380,11 +609,20 @@ class _BookingWizardScreenState extends ConsumerState<BookingWizardScreen> {
                     const SizedBox(height: 14),
                     _buildFeeRow(
                       _isHourly
-                          ? 'Saatlik Ücret (₺${_unitPrice.toStringAsFixed(0)} × $_hoursCount saat)'
-                          : 'Kişi Başı Ücret (₺${_unitPrice.toStringAsFixed(0)} × $_guestCount kişi)',
-                      '₺${_totalAmount.toStringAsFixed(0)}',
+                          ? 'Saatlik Ücret (₺${_effectiveUnitPrice.toStringAsFixed(0)} × $_hoursCount saat)'
+                          : 'Kişi Başı Ücret (₺${_effectiveUnitPrice.toStringAsFixed(0)} × $_guestCount kişi)',
+                      '₺${_baseServiceAmount.toStringAsFixed(0)}',
                       palette: palette,
                     ),
+                    if (!_isHourly && _includeBartenderUpsell) ...[
+                      const SizedBox(height: 8),
+                      _buildFeeRow(
+                        'Master Miksolojist & Mobil Bar Paketi (3 Saat)',
+                        '+₺${_bartenderUpsellFee.toStringAsFixed(0)}',
+                        valueColor: const Color(0xFFC084FC),
+                        palette: palette,
+                      ),
+                    ],
                     const SizedBox(height: 8),
                     _buildFeeRow(
                       'GastroHost Platform Komisyonu (%10)',
@@ -694,6 +932,24 @@ class _BookingWizardScreenState extends ConsumerState<BookingWizardScreen> {
   bool _isProcessing = false;
 
   void _showPaymentModalSheet(AppThemePalette palette, bool isDark) {
+    final bookingState = ref.read(bookingProvider);
+    final hasSameDayConflict = bookingState.bookings.any((b) =>
+        b.status != 'completed' &&
+        b.status != 'cancelled' &&
+        b.eventDate.year == _selectedDate.year &&
+        b.eventDate.month == _selectedDate.month &&
+        b.eventDate.day == _selectedDate.day);
+    if (hasSameDayConflict) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('⚠️ Seçtiğiniz tarihte halihazırda aktif bir rezervasyonunuz bulunuyor. Lütfen farklı bir etkinlik tarihi seçin.'),
+          backgroundColor: Color(0xFFD97706),
+          duration: Duration(seconds: 4),
+        ),
+      );
+      return;
+    }
+
     final nameController = TextEditingController(text: 'Ahmet Yılmaz');
     final cardNumberController = TextEditingController(text: '4543 •••• •••• 0000');
     final expiryController = TextEditingController(text: '12/28');
@@ -934,12 +1190,21 @@ class _BookingWizardScreenState extends ConsumerState<BookingWizardScreen> {
     setState(() => _isProcessing = true);
 
     try {
+      final List<String> userAllergies = _selectedAllergies.toList();
+      if (_allergyNoteController.text.trim().isNotEmpty) {
+        userAllergies.add('Özel Not: ${_allergyNoteController.text.trim()}');
+      }
+      if (userAllergies.isEmpty) {
+        userAllergies.add('Belirtilen alerjen veya diyet hassasiyeti yok');
+      }
+
       final supabaseService = SupabaseService();
       final providerId = widget.provider['id']?.toString() ?? 'prov_demo_101';
       final menuId = widget.menu['id']?.toString() ?? 'menu_demo_101';
 
       // 1. Create booking record
       String bookingId = 'b_${DateTime.now().millisecondsSinceEpoch}';
+      String? dbBookingCode;
       try {
         final booking = await supabaseService.createBooking(
           providerId: providerId,
@@ -947,18 +1212,26 @@ class _BookingWizardScreenState extends ConsumerState<BookingWizardScreen> {
           eventDate: _selectedDate,
           eventTime: '${_selectedTime.hour.toString().padLeft(2, '0')}:${_selectedTime.minute.toString().padLeft(2, '0')}',
           guestCount: _guestCount,
+          isHourly: _isHourly,
+          hoursCount: _hoursCount,
+          unitPrice: _effectiveUnitPrice,
           totalPrice: _totalAmount,
           platformFee: _platformFee,
           providerEarnings: _providerEarnings,
+          ingredientsIncluded: _ingredientsIncluded,
           kitchenDetails: {
             'stove': _hasStove,
             'oven': _hasOven,
             'blender': _hasBlender,
+            'bartender_upsell': !_isHourly && _includeBartenderUpsell,
           },
-          allergies: [],
-          eventAddress: 'Müşteri Adresi (İstanbul/Kadıköy)',
+          allergies: userAllergies,
+          eventAddress: _addressController.text.trim().isNotEmpty
+              ? _addressController.text.trim()
+              : 'Caferağa Mah. Moda Cad. No:14 D:3, Kadıköy / İstanbul',
         );
         bookingId = booking['id']?.toString() ?? bookingId;
+        dbBookingCode = booking['booking_code']?.toString();
       } catch (e) {
         debugPrint('Demo mode booking fallback: $e');
       }
@@ -969,10 +1242,39 @@ class _BookingWizardScreenState extends ConsumerState<BookingWizardScreen> {
           bookingId: bookingId,
           amount: _totalAmount,
           gateway: 'iyzico',
+          commissionRate: 0.10,
         );
       } catch (e) {
         debugPrint('Demo mode escrow fallback: $e');
       }
+
+      // 3. Save to central BookingProvider with full details
+      final newBooking = ref.read(bookingProvider.notifier).addBooking(
+        provider: widget.provider,
+        menu: widget.menu,
+        eventDate: _selectedDate,
+        eventTime: _selectedTime,
+        guestCount: _guestCount,
+        hoursCount: _hoursCount,
+        address: _addressController.text.trim().isNotEmpty
+            ? _addressController.text.trim()
+            : 'Caferağa Mah. Moda Cad. No:14 D:3, Kadıköy / İstanbul',
+        kitchenDetails: {
+          'stove': _hasStove,
+          'oven': _hasOven,
+          'blender': _hasBlender,
+          'mobile_bar': _isHourly || _includeBartenderUpsell,
+        },
+        allergies: userAllergies,
+        totalPrice: _totalAmount,
+        platformFee: _platformFee,
+        providerEarnings: _providerEarnings,
+        unitPrice: _effectiveUnitPrice,
+        isHourly: _isHourly,
+        ingredientsIncluded: _ingredientsIncluded,
+        dbUuid: bookingId.startsWith('b_') ? null : bookingId,
+        customBookingId: dbBookingCode ?? (bookingId.startsWith('b_') ? 'GH-${bookingId.replaceAll('b_', '').substring(0, 5)}' : bookingId),
+      );
 
       if (mounted) {
         setState(() => _isProcessing = false);
@@ -983,7 +1285,7 @@ class _BookingWizardScreenState extends ConsumerState<BookingWizardScreen> {
             duration: Duration(seconds: 3),
           ),
         );
-        widget.onBookingComplete(bookingId);
+        widget.onBookingComplete(newBooking.id);
       }
     } catch (e) {
       if (mounted) {
@@ -1010,6 +1312,7 @@ class _BookingWizardScreenState extends ConsumerState<BookingWizardScreen> {
         ],
       ),
       child: SafeArea(
+        top: false,
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
